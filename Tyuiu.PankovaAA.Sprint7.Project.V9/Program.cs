@@ -4,6 +4,7 @@ using System.Windows.Forms;
 namespace Tyuiu.PankovaPAA.Sprint7.App
 {
     internal static class Program
+        //убрать
     {
         [STAThread]
         static void Main()

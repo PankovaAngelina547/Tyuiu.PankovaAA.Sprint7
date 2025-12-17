@@ -33,7 +33,7 @@ namespace Tyuiu.PankovaPAA.Sprint7.Lib
 
         public decimal Cost { get; set; }
 
-        // Связь с актёром
+        // Связь с актёромт
         public int ActorId { get; set; }
     }
 }

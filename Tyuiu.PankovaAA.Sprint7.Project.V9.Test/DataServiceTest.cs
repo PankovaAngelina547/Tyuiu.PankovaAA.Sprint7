@@ -4,6 +4,7 @@ using System.Numerics;
 using Tyuiu.PankovaPAA.Sprint7.Lib;
 
 namespace Tyuiu.PankovaPAA.Sprint7.Test
+    //убрать
 {
     [TestClass]
     public class UnitTest1

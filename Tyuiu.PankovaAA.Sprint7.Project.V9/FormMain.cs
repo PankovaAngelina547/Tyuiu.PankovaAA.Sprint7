@@ -19,6 +19,7 @@ namespace Tyuiu.PankovaPAA.Sprint7.App
         private void buttonExit_PAA_Click(object sender, EventArgs e)
         {
             Close();
+            //убрать
         }
     }
 }
