@@ -5,7 +5,6 @@
         private System.ComponentModel.IContainer components = null;
 
         private System.Windows.Forms.Label labelTitle_PAA;
-        private System.Windows.Forms.Label labelHint_PAA;
         private System.Windows.Forms.Button buttonExit_PAA;
         private System.Windows.Forms.Label labelStatus_PAA;
 
@@ -20,7 +19,6 @@
         private void InitializeComponent()
         {
             this.labelTitle_PAA = new System.Windows.Forms.Label();
-            this.labelHint_PAA = new System.Windows.Forms.Label();
             this.buttonExit_PAA = new System.Windows.Forms.Button();
             this.labelStatus_PAA = new System.Windows.Forms.Label();
             this.SuspendLayout();
@@ -34,16 +32,6 @@
             this.labelTitle_PAA.Size = new System.Drawing.Size(251, 30);
             this.labelTitle_PAA.TabIndex = 0;
             this.labelTitle_PAA.Text = "Каталог видеоклипов";
-            // 
-            // labelHint_PAA
-            // 
-            this.labelHint_PAA.AutoSize = true;
-            this.labelHint_PAA.Location = new System.Drawing.Point(20, 65);
-            this.labelHint_PAA.MaximumSize = new System.Drawing.Size(820, 0);
-            this.labelHint_PAA.Name = "labelHint_PAA";
-            this.labelHint_PAA.Size = new System.Drawing.Size(770, 15);
-            this.labelHint_PAA.TabIndex = 1;
-            this.labelHint_PAA.Text = "День 1: каркас проекта + модели данных в библиотеке + тест. Дальше добавим меню/toolbar/таблицу и CSV.";
             // 
             // buttonExit_PAA
             // 
@@ -73,7 +61,6 @@
             this.ClientSize = new System.Drawing.Size(800, 550);
             this.Controls.Add(this.labelStatus_PAA);
             this.Controls.Add(this.buttonExit_PAA);
-            this.Controls.Add(this.labelHint_PAA);
             this.Controls.Add(this.labelTitle_PAA);
             this.MinimumSize = new System.Drawing.Size(900, 600);
             this.Name = "FormMain";

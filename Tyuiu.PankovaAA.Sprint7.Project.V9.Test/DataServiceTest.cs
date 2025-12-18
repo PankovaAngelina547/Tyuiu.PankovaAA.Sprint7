@@ -1,39 +1,59 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
-using System.Numerics;
+using System.Collections.Generic;
+using System.IO;
 using Tyuiu.PankovaPAA.Sprint7.Lib;
 
 namespace Tyuiu.PankovaPAA.Sprint7.Test
-    //убрать
 {
     [TestClass]
     public class UnitTest1
     {
+        private const string ActorsFile = "test_actors.csv";
+        private const string ClipsFile = "test_clips.csv";
+
         [TestMethod]
-        public void Models_Create_Works()
+        public void Csv_Save_And_Load_Works()
         {
-            var actor = new Actor
+            var actors = new List<Actor>
             {
-                ActorId = 1,
-                LastName = "Иванова",
-                FirstName = "Анна",
-                MiddleName = "Сергеевна",
-                RoleType = "Вокал"
+                new Actor
+                {
+                    ActorId = 1,
+                    LastName = "Иванова",
+                    FirstName = "Анна",
+                    MiddleName = "Сергеевна",
+                    RoleType = "Вокал"
+                }
             };
 
-            var clip = new VideoClip
+            var clips = new List<VideoClip>
             {
-                Code = "CL-001",
-                RecordDate = new DateTime(2025, 12, 17),
-                DurationSec = 210,
-                Theme = "Поп",
-                Cost = 199.99m,
-                ActorId = 1
+                new VideoClip
+                {
+                    Code = "CL-01",
+                    RecordDate = new DateTime(2024, 1, 1),
+                    DurationSec = 180,
+                    Theme = "Поп",
+                    Cost = 199.99m,
+                    ActorId = 1
+                }
             };
 
-            Assert.AreEqual(1, actor.ActorId);
-            Assert.AreEqual("CL-001", clip.Code);
-            Assert.AreEqual(210, clip.DurationSec);
+            CsvDataService.SaveActors(ActorsFile, actors);
+            CsvDataService.SaveClips(ClipsFile, clips);
+
+            var loadedActors = CsvDataService.LoadActors(ActorsFile);
+            var loadedClips = CsvDataService.LoadClips(ClipsFile);
+
+            Assert.AreEqual(1, loadedActors.Count);
+            Assert.AreEqual("Иванова", loadedActors[0].LastName);
+
+            Assert.AreEqual(1, loadedClips.Count);
+            Assert.AreEqual("CL-01", loadedClips[0].Code);
+
+            File.Delete(ActorsFile);
+            File.Delete(ClipsFile);
         }
     }
 }

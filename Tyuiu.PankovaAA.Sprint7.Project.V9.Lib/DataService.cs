@@ -1,39 +1,127 @@
-﻿using System.Linq;
-using System;
+﻿using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 
 namespace Tyuiu.PankovaPAA.Sprint7.Lib
 {
-    // Актёр
+    // =======================
+    // МОДЕЛИ
+    // =======================
+
     public sealed class Actor
     {
         public int ActorId { get; set; }
-
         public string LastName { get; set; } = string.Empty;
         public string FirstName { get; set; } = string.Empty;
         public string MiddleName { get; set; } = string.Empty;
-
-        // Амплуа
         public string RoleType { get; set; } = string.Empty;
-
-        public string FullName => $"{LastName} {FirstName} {MiddleName}".Trim();
     }
 
-    // Видеоклип
     public sealed class VideoClip
     {
-        // Код видеоленты/клипа
         public string Code { get; set; } = string.Empty;
-
-        public DateTime RecordDate { get; set; } = DateTime.Today;
-
-        // Длительность (сек)
+        public DateTime RecordDate { get; set; }
         public int DurationSec { get; set; }
-
         public string Theme { get; set; } = string.Empty;
-
         public decimal Cost { get; set; }
-
-        // Связь с актёромт
         public int ActorId { get; set; }
+    }
+
+    // =======================
+    // РАБОТА С CSV
+    // =======================
+
+    public static class CsvDataService
+    {
+        private const char Separator = ';';
+
+        // ---------- СОХРАНЕНИЕ ----------
+
+        public static void SaveActors(string filePath, List<Actor> actors)
+        {
+            using StreamWriter writer = new StreamWriter(filePath, false);
+            writer.WriteLine("ActorId;LastName;FirstName;MiddleName;RoleType");
+
+            foreach (var a in actors)
+            {
+                writer.WriteLine(
+                    $"{a.ActorId}{Separator}{a.LastName}{Separator}{a.FirstName}{Separator}{a.MiddleName}{Separator}{a.RoleType}"
+                );
+            }
+        }
+
+        public static void SaveClips(string filePath, List<VideoClip> clips)
+        {
+            using StreamWriter writer = new StreamWriter(filePath, false);
+            writer.WriteLine("Code;RecordDate;DurationSec;Theme;Cost;ActorId");
+
+            foreach (var c in clips)
+            {
+                writer.WriteLine(
+                    $"{c.Code}{Separator}" +
+                    $"{c.RecordDate:yyyy-MM-dd}{Separator}" +
+                    $"{c.DurationSec}{Separator}" +
+                    $"{c.Theme}{Separator}" +
+                    $"{c.Cost.ToString(CultureInfo.InvariantCulture)}{Separator}" +
+                    $"{c.ActorId}"
+                );
+            }
+        }
+
+        // ---------- ЧТЕНИЕ ----------
+
+        public static List<Actor> LoadActors(string filePath)
+        {
+            List<Actor> result = new List<Actor>();
+
+            if (!File.Exists(filePath))
+                return result;
+
+            string[] lines = File.ReadAllLines(filePath);
+
+            for (int i = 1; i < lines.Length; i++) // пропускаем заголовок
+            {
+                string[] parts = lines[i].Split(Separator);
+
+                result.Add(new Actor
+                {
+                    ActorId = int.Parse(parts[0]),
+                    LastName = parts[1],
+                    FirstName = parts[2],
+                    MiddleName = parts[3],
+                    RoleType = parts[4]
+                });
+            }
+
+            return result;
+        }
+
+        public static List<VideoClip> LoadClips(string filePath)
+        {
+            List<VideoClip> result = new List<VideoClip>();
+
+            if (!File.Exists(filePath))
+                return result;
+
+            string[] lines = File.ReadAllLines(filePath);
+
+            for (int i = 1; i < lines.Length; i++)
+            {
+                string[] parts = lines[i].Split(Separator);
+
+                result.Add(new VideoClip
+                {
+                    Code = parts[0],
+                    RecordDate = DateTime.Parse(parts[1]),
+                    DurationSec = int.Parse(parts[2]),
+                    Theme = parts[3],
+                    Cost = decimal.Parse(parts[4], CultureInfo.InvariantCulture),
+                    ActorId = int.Parse(parts[5])
+                });
+            }
+
+            return result;
+        }
     }
 }
