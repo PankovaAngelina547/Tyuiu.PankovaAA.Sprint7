@@ -138,5 +138,29 @@ namespace Tyuiu.PankovaPAA.Sprint7.App
         {
             Close();
         }
+        private void toolStripMenuItemAbout_PAA_Click(object sender, EventArgs e)
+        {
+            MessageBox.Show(
+                "Каталог видеоклипов\n\n" +
+                "Разработчик: Панькова А.А. (ПАА)\n" +
+                "Хранение данных: CSV\n" +
+                "Функции: загрузка/сохранение, демонстрационные данные, таблица каталога.",
+                "О программе",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+        }
+
+        private void toolStripMenuItemGuide_PAA_Click(object sender, EventArgs e)
+        {
+            MessageBox.Show(
+                "Краткое руководство:\n\n" +
+                "1) Demo — загрузить тестовые данные в таблицу.\n" +
+                "2) Сохранить — сохранить Actors.csv и Clips.csv в папку Data рядом с exe.\n" +
+                "3) Открыть — загрузить CSV из папки Data обратно в таблицу.\n\n" +
+                "Файлы сохраняются в: папка Data (рядом с программой).",
+                "Руководство пользователя",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+        }
     }
 }
