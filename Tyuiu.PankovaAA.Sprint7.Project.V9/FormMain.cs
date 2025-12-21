@@ -1,4 +1,4 @@
-
+п»їusing Tyuiu.PankovaPAA.Sprint7.Lib;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -10,8 +10,12 @@ namespace Tyuiu.PankovaPAA.Sprint7.App
 {
     public partial class FormMain : Form
     {
+        // РјР°СЃС‚РµСЂ-РґР°РЅРЅС‹Рµ (РІСЃСЏ Р±Р°Р·Р°)
         private readonly List<Actor> actors_PAA = new List<Actor>();
-        private readonly List<VideoClip> clips_PAA = new List<VideoClip>();
+        private readonly List<VideoClip> clipsMaster_PAA = new List<VideoClip>();
+
+        // С‚Рѕ, С‡С‚Рѕ РїРѕРєР°Р·С‹РІР°РµРј РІ С‚Р°Р±Р»РёС†Рµ (РїРѕСЃР»Рµ РїРѕРёСЃРєР°/С„РёР»СЊС‚СЂР°/СЃРѕСЂС‚РёСЂРѕРІРєРё)
+        private readonly List<VideoClip> clipsView_PAA = new List<VideoClip>();
 
         private string dataFolder_PAA;
         private string actorsPath_PAA;
@@ -21,7 +25,6 @@ namespace Tyuiu.PankovaPAA.Sprint7.App
         {
             InitializeComponent();
 
-            // Папка Data рядом с exe (под CSV)
             dataFolder_PAA = Path.Combine(AppContext.BaseDirectory, "Data");
             if (!Directory.Exists(dataFolder_PAA))
                 Directory.CreateDirectory(dataFolder_PAA);
@@ -29,123 +32,405 @@ namespace Tyuiu.PankovaPAA.Sprint7.App
             actorsPath_PAA = Path.Combine(dataFolder_PAA, "Actors.csv");
             clipsPath_PAA = Path.Combine(dataFolder_PAA, "Clips.csv");
 
+            SetupCombos_PAA();
             SetupGrid_PAA();
-            UpdateStatus_PAA("Готово");
+
+            UpdateStatus_PAA("Р“РѕС‚РѕРІРѕ");
         }
 
         private void SetupGrid_PAA()
         {
             dataGridViewClips_PAA.AutoGenerateColumns = true;
-            dataGridViewClips_PAA.DataSource = null;
-            dataGridViewClips_PAA.DataSource = clips_PAA;
+            dataGridViewClips_PAA.ReadOnly = true;
+            dataGridViewClips_PAA.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            dataGridViewClips_PAA.MultiSelect = false;
+
+            RefreshGrid_PAA();
+        }
+
+        private void SetupCombos_PAA()
+        {
+            comboBoxSort_PAA.Items.Clear();
+            comboBoxSort_PAA.Items.Add("Р‘РµР· СЃРѕСЂС‚РёСЂРѕРІРєРё");
+            comboBoxSort_PAA.Items.Add("РљРѕРґ (Aв†’Z)");
+            comboBoxSort_PAA.Items.Add("Р”Р°С‚Р° (РЅРѕРІС‹Рµв†’СЃС‚Р°СЂС‹Рµ)");
+            comboBoxSort_PAA.Items.Add("Р”Р»РёС‚РµР»СЊРЅРѕСЃС‚СЊ (РїРѕ РІРѕР·СЂР°СЃС‚Р°РЅРёСЋ)");
+            comboBoxSort_PAA.Items.Add("РЎС‚РѕРёРјРѕСЃС‚СЊ (РїРѕ СѓР±С‹РІР°РЅРёСЋ)");
+            comboBoxSort_PAA.SelectedIndex = 0;
+
+            comboBoxTheme_PAA.Items.Clear();
+            comboBoxTheme_PAA.Items.Add("Р’СЃРµ");
+            comboBoxTheme_PAA.SelectedIndex = 0;
+        }
+
+        private void RebuildThemeFilter_PAA()
+        {
+            var themes = clipsMaster_PAA
+                .Select(c => c.Theme)
+                .Where(t => !string.IsNullOrWhiteSpace(t))
+                .Distinct()
+                .OrderBy(t => t)
+                .ToList();
+
+            comboBoxTheme_PAA.Items.Clear();
+            comboBoxTheme_PAA.Items.Add("Р’СЃРµ");
+            foreach (var t in themes)
+                comboBoxTheme_PAA.Items.Add(t);
+
+            comboBoxTheme_PAA.SelectedIndex = 0;
         }
 
         private void RefreshGrid_PAA()
         {
-            // Перепривязка, чтобы DataGridView обновился гарантированно
             dataGridViewClips_PAA.DataSource = null;
-            dataGridViewClips_PAA.DataSource = clips_PAA;
-            UpdateStatus_PAA("Обновлено");
+            dataGridViewClips_PAA.DataSource = clipsView_PAA;
+            UpdateStatus_PAA("РћР±РЅРѕРІР»РµРЅРѕ");
         }
 
         private void UpdateStatus_PAA(string message)
         {
-            labelStatus_PAA.Text = $"{message}. Клип(ов): {clips_PAA.Count}";
+            labelStatus_PAA.Text = $"{message}. РџРѕРєР°Р·Р°РЅРѕ: {clipsView_PAA.Count} / Р’СЃРµРіРѕ: {clipsMaster_PAA.Count}";
         }
 
-        // ----------------- КНОПКИ -----------------
+        // ------------------ Р”Р•РњРћ/CSV ------------------
 
         private void buttonDemo_PAA_Click(object sender, EventArgs e)
         {
             actors_PAA.Clear();
-            clips_PAA.Clear();
+            clipsMaster_PAA.Clear();
 
-            // демо-актёры
-            actors_PAA.Add(new Actor { ActorId = 1, LastName = "Иванова", FirstName = "Анна", MiddleName = "Сергеевна", RoleType = "Вокал" });
-            actors_PAA.Add(new Actor { ActorId = 2, LastName = "Петров", FirstName = "Илья", MiddleName = "Олегович", RoleType = "Рэп" });
+            actors_PAA.Add(new Actor { ActorId = 1, LastName = "РРІР°РЅРѕРІР°", FirstName = "РђРЅРЅР°", MiddleName = "РЎРµСЂРіРµРµРІРЅР°", RoleType = "Р’РѕРєР°Р»" });
+            actors_PAA.Add(new Actor { ActorId = 2, LastName = "РџРµС‚СЂРѕРІ", FirstName = "РР»СЊСЏ", MiddleName = "РћР»РµРіРѕРІРёС‡", RoleType = "Р СЌРї" });
 
-            // демо-клипы
-            clips_PAA.Add(new VideoClip { Code = "CL-001", RecordDate = new DateTime(2024, 01, 10), DurationSec = 210, Theme = "Поп", Cost = 199.99m, ActorId = 1 });
-            clips_PAA.Add(new VideoClip { Code = "CL-002", RecordDate = new DateTime(2024, 02, 05), DurationSec = 180, Theme = "Хип-хоп", Cost = 149.50m, ActorId = 2 });
-            clips_PAA.Add(new VideoClip { Code = "CL-003", RecordDate = new DateTime(2024, 03, 01), DurationSec = 240, Theme = "Поп", Cost = 249.00m, ActorId = 1 });
+            clipsMaster_PAA.Add(new VideoClip { Code = "CL-001", RecordDate = new DateTime(2024, 01, 10), DurationSec = 210, Theme = "РџРѕРї", Cost = 199.99m, ActorId = 1 });
+            clipsMaster_PAA.Add(new VideoClip { Code = "CL-002", RecordDate = new DateTime(2024, 02, 05), DurationSec = 180, Theme = "РҐРёРї-С…РѕРї", Cost = 149.50m, ActorId = 2 });
+            clipsMaster_PAA.Add(new VideoClip
+            {
+                Code = "CL-003",
+                RecordDate = new DateTime(2024, 03, 01),
+                DurationSec = 240,
+                Theme = "РџРѕРї",
+                Cost = 249.00m,
+                ActorId = 1
+            });
 
-            RefreshGrid_PAA();
-            UpdateStatus_PAA("Demo загружено");
+            RebuildThemeFilter_PAA();
+            ApplyView_PAA();
+            UpdateStatus_PAA("Demo Р·Р°РіСЂСѓР¶РµРЅРѕ");
         }
 
         private void buttonOpen_PAA_Click(object sender, EventArgs e)
         {
-            // Открываем клипы (Clips.csv) — актёров читаем “параллельно” из Actors.csv
             try
             {
-                // если файлов ещё нет — объясняем нормально
                 if (!File.Exists(clipsPath_PAA))
                 {
                     MessageBox.Show(
-                        "Файл Clips.csv не найден в папке Data.\n" +
-                        "Нажми Demo и потом Сохранить — тогда появятся CSV.",
-                        "Открыть",
+                        "Р¤Р°Р№Р» Clips.csv РЅРµ РЅР°Р№РґРµРЅ РІ РїР°РїРєРµ Data.\nРќР°Р¶РјРё Demo в†’ РЎРѕС…СЂР°РЅРёС‚СЊ, С‡С‚РѕР±С‹ СЃРѕР·РґР°С‚СЊ CSV.",
+                        "РћС‚РєСЂС‹С‚СЊ",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Information);
                     return;
                 }
 
                 actors_PAA.Clear();
-                clips_PAA.Clear();
+                clipsMaster_PAA.Clear();
 
                 actors_PAA.AddRange(CsvDataService.LoadActors(actorsPath_PAA));
-                clips_PAA.AddRange(CsvDataService.LoadClips(clipsPath_PAA));
+                clipsMaster_PAA.AddRange(CsvDataService.LoadClips(clipsPath_PAA));
 
-                RefreshGrid_PAA();
-                UpdateStatus_PAA("Загружено из CSV");
+                RebuildThemeFilter_PAA();
+                ApplyView_PAA();
+                UpdateStatus_PAA("Р—Р°РіСЂСѓР¶РµРЅРѕ РёР· CSV");
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message, "Ошибка открытия CSV", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(ex.Message, "РћС€РёР±РєР° РѕС‚РєСЂС‹С‚РёСЏ CSV", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
+
         private void buttonSave_PAA_Click(object sender, EventArgs e)
         {
             try
             {
-                // Если актёров пусто — сделаем минимум, чтобы CSV был консистентный
-                if (actors_PAA.Count == 0 && clips_PAA.Count > 0)
-                {
-                    // создаём “неизвестного” актёра для всех
-                    actors_PAA.Add(new Actor { ActorId = 1, LastName = "Неизвестно", FirstName = "", MiddleName = "", RoleType = "" });
-
-                    foreach (var c in clips_PAA.Where(x => x.ActorId == 0))
-                        c.ActorId = 1;
-                }
-
                 CsvDataService.SaveActors(actorsPath_PAA, actors_PAA);
-                CsvDataService.SaveClips(clipsPath_PAA, clips_PAA);
+                CsvDataService.SaveClips(clipsPath_PAA, clipsMaster_PAA);
 
-                UpdateStatus_PAA("Сохранено в CSV");
-                MessageBox.Show(
-                    $"Сохранено:\n{actorsPath_PAA}\n{clipsPath_PAA}",
-                    "Сохранить",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
+                UpdateStatus_PAA("РЎРѕС…СЂР°РЅРµРЅРѕ РІ CSV");
+                MessageBox.Show($"РЎРѕС…СЂР°РЅРµРЅРѕ:\n{actorsPath_PAA}\n{clipsPath_PAA}", "РЎРѕС…СЂР°РЅРёС‚СЊ", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message, "Ошибка сохранения CSV", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(ex.Message, "РћС€РёР±РєР° СЃРѕС…СЂР°РЅРµРЅРёСЏ CSV", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
-        private void buttonExit_PAA_Click(object sender, EventArgs e)
+        // ------------------ РџРћРРЎРљ / Р¤РР›Р¬РўР  / РЎРћР Рў ------------------
+
+        private void buttonApply_PAA_Click(object sender, EventArgs e)
         {
-            Close();
+            ApplyView_PAA();
         }
+
+        private void buttonReset_PAA_Click(object sender, EventArgs e)
+        {
+            textBoxSearch_PAA.Text = "";
+            comboBoxTheme_PAA.SelectedIndex = 0;
+            comboBoxSort_PAA.SelectedIndex = 0;
+
+            ApplyView_PAA();
+        }
+
+        private void ApplyView_PAA()
+        {
+            string search = (textBoxSearch_PAA.Text ?? "").Trim().ToLowerInvariant();
+            string theme = comboBoxTheme_PAA.SelectedItem?.ToString() ?? "Р’СЃРµ";
+            string sort = comboBoxSort_PAA.SelectedItem?.ToString() ?? "Р‘РµР· СЃРѕСЂС‚РёСЂРѕРІРєРё";
+
+            IEnumerable<VideoClip> q = clipsMaster_PAA;
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                q = q.Where(c =>
+                    (c.Code ?? "").ToLowerInvariant().Contains(search) ||
+                    (c.Theme ?? "").ToLowerInvariant().Contains(search));
+            }
+
+            if (theme != "Р’СЃРµ")
+            {
+                q = q.Where(c => string.Equals(c.Theme, theme, StringComparison.OrdinalIgnoreCase));
+            }
+
+            // СЃРѕСЂС‚РёСЂРѕРІРєР°
+            q = sort switch
+            {
+                "РљРѕРґ (Aв†’Z)" => q.OrderBy(c => c.Code),
+                "Р”Р°С‚Р° (РЅРѕРІС‹Рµв†’СЃС‚Р°СЂС‹Рµ)" => q.OrderByDescending(c => c.RecordDate),
+                "Р”Р»РёС‚РµР»СЊРЅРѕСЃС‚СЊ (РїРѕ РІРѕР·СЂР°СЃС‚Р°РЅРёСЋ)" => q.OrderBy(c => c.DurationSec),
+                "РЎС‚РѕРёРјРѕСЃС‚СЊ (РїРѕ СѓР±С‹РІР°РЅРёСЋ)" => q.OrderByDescending(c => c.Cost),
+                _ => q
+            };
+
+            clipsView_PAA.Clear();
+            clipsView_PAA.AddRange(q);
+
+            RefreshGrid_PAA();
+        }
+
+        // ------------------ CRUD ------------------
+
+        private void buttonAdd_PAA_Click(object sender, EventArgs e)
+        {
+            var clip = new VideoClip
+            {
+                Code = "",
+                RecordDate = DateTime.Today,
+                DurationSec = 180,
+                Theme = "",
+                Cost = 0m,
+                ActorId = (actors_PAA.Count > 0 ? actors_PAA[0].ActorId : 1)
+            };
+
+if (ShowEditDialog_PAA(clip, isEdit: false))
+            {
+                if (clipsMaster_PAA.Any(x => string.Equals(x.Code, clip.Code, StringComparison.OrdinalIgnoreCase)))
+                {
+                    MessageBox.Show("РљРѕРґ РєР»РёРїР° РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ СѓРЅРёРєР°Р»СЊРЅС‹Рј.", "Р”РѕР±Р°РІРёС‚СЊ", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                clipsMaster_PAA.Add(clip);
+                RebuildThemeFilter_PAA();
+                ApplyView_PAA();
+                UpdateStatus_PAA("Р”РѕР±Р°РІР»РµРЅРѕ");
+            }
+        }
+
+        private void buttonEdit_PAA_Click(object sender, EventArgs e)
+        {
+            var selected = GetSelectedClip_PAA();
+            if (selected == null)
+            {
+                MessageBox.Show("Р’С‹Р±РµСЂРё СЃС‚СЂРѕРєСѓ РІ С‚Р°Р±Р»РёС†Рµ.", "РР·РјРµРЅРёС‚СЊ", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            // РёС‰РµРј РѕСЂРёРіРёРЅР°Р» РїРѕ РєРѕРґСѓ
+            var original = clipsMaster_PAA.FirstOrDefault(x => x.Code == selected.Code);
+            if (original == null) return;
+
+            // РєРѕРїРёСЏ РЅР° СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ
+            var copy = new VideoClip
+            {
+                Code = original.Code,
+                RecordDate = original.RecordDate,
+                DurationSec = original.DurationSec,
+                Theme = original.Theme,
+                Cost = original.Cost,
+                ActorId = original.ActorId
+            };
+
+            if (ShowEditDialog_PAA(copy, isEdit: true))
+            {
+                // РµСЃР»Рё РєРѕРґ РїРѕРјРµРЅСЏР»Рё вЂ” РїСЂРѕРІРµСЂРёРј СѓРЅРёРєР°Р»СЊРЅРѕСЃС‚СЊ
+                if (!string.Equals(original.Code, copy.Code, StringComparison.OrdinalIgnoreCase) &&
+                    clipsMaster_PAA.Any(x => string.Equals(x.Code, copy.Code, StringComparison.OrdinalIgnoreCase)))
+                {
+                    MessageBox.Show("РљРѕРґ РєР»РёРїР° РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ СѓРЅРёРєР°Р»СЊРЅС‹Рј.", "РР·РјРµРЅРёС‚СЊ", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                original.Code = copy.Code;
+                original.RecordDate = copy.RecordDate;
+                original.DurationSec = copy.DurationSec;
+                original.Theme = copy.Theme;
+                original.Cost = copy.Cost;
+                original.ActorId = copy.ActorId;
+
+                RebuildThemeFilter_PAA();
+                ApplyView_PAA();
+                UpdateStatus_PAA("РР·РјРµРЅРµРЅРѕ");
+            }
+        }
+
+        private void buttonDelete_PAA_Click(object sender, EventArgs e)
+        {
+            var selected = GetSelectedClip_PAA();
+            if (selected == null)
+            {
+                MessageBox.Show("Р’С‹Р±РµСЂРё СЃС‚СЂРѕРєСѓ РІ С‚Р°Р±Р»РёС†Рµ.", "РЈРґР°Р»РёС‚СЊ", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            var result = MessageBox.Show($"РЈРґР°Р»РёС‚СЊ РєР»РёРї {selected.Code}?", "РЈРґР°Р»РёС‚СЊ", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (result != DialogResult.Yes) return;
+
+            var original = clipsMaster_PAA.FirstOrDefault(x => x.Code == selected.Code);
+            if (original != null)
+            {
+                clipsMaster_PAA.Remove(original);
+                RebuildThemeFilter_PAA();
+                ApplyView_PAA();
+                UpdateStatus_PAA("РЈРґР°Р»РµРЅРѕ");
+            }
+        }
+
+        private VideoClip GetSelectedClip_PAA()
+        {
+            if (dataGridViewClips_PAA.CurrentRow == null) return null;
+            return dataGridViewClips_PAA.CurrentRow.DataBoundItem as VideoClip;
+        }
+
+        // ------------------ Р’СЃС‚СЂРѕРµРЅРЅРѕРµ РѕРєРЅРѕ СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёСЏ (Р±РµР· РЅРѕРІС‹С… С„Р°Р№Р»РѕРІ) ------------------
+
+        private bool ShowEditDialog_PAA(VideoClip clip, bool isEdit)
+        {
+            using var dlg = new ClipEditDialog_PAA(clip, isEdit);
+            return dlg.ShowDialog(this) == DialogResult.OK;
+        }
+
+        private sealed class ClipEditDialog_PAA : Form
+        {
+            private readonly VideoClip clip_PAA;
+
+            private TextBox textBoxCode_PAA;
+            private DateTimePicker dateTimePickerRecord_PAA;
+
+      
+private NumericUpDown numericDuration_PAA;
+            private TextBox textBoxTheme_PAA;
+            private NumericUpDown numericCost_PAA;
+
+            private Button buttonOk_PAA;
+            private Button buttonCancel_PAA;
+
+            public ClipEditDialog_PAA(VideoClip clip, bool isEdit)
+            {
+                clip_PAA = clip;
+
+                Text = isEdit ? "РР·РјРµРЅРёС‚СЊ РєР»РёРї" : "Р”РѕР±Р°РІРёС‚СЊ РєР»РёРї";
+                StartPosition = FormStartPosition.CenterParent;
+                FormBorderStyle = FormBorderStyle.FixedDialog;
+                MaximizeBox = false;
+                MinimizeBox = false;
+                ClientSize = new System.Drawing.Size(420, 240);
+
+                BuildUi_PAA();
+                LoadValues_PAA();
+            }
+
+            private void BuildUi_PAA()
+            {
+                var labelCode = new Label { Left = 15, Top = 15, Width = 120, Text = "РљРѕРґ РєР»РёРїР°" };
+                textBoxCode_PAA = new TextBox { Left = 150, Top = 12, Width = 240 };
+
+                var labelDate = new Label { Left = 15, Top = 45, Width = 120, Text = "Р”Р°С‚Р° Р·Р°РїРёСЃРё" };
+                dateTimePickerRecord_PAA = new DateTimePicker { Left = 150, Top = 42, Width = 240 };
+
+                var labelDur = new Label { Left = 15, Top = 75, Width = 120, Text = "Р”Р»РёС‚РµР»СЊРЅРѕСЃС‚СЊ (СЃРµРє)" };
+                numericDuration_PAA = new NumericUpDown { Left = 150, Top = 72, Width = 240, Minimum = 1, Maximum = 36000 };
+
+                var labelTheme = new Label { Left = 15, Top = 105, Width = 120, Text = "РўРµРјР°" };
+                textBoxTheme_PAA = new TextBox { Left = 150, Top = 102, Width = 240 };
+
+                var labelCost = new Label { Left = 15, Top = 135, Width = 120, Text = "РЎС‚РѕРёРјРѕСЃС‚СЊ" };
+                numericCost_PAA = new NumericUpDown { Left = 150, Top = 132, Width = 240, Minimum = 0, Maximum = 100000000, DecimalPlaces = 2, Increment = 10 };
+
+                buttonOk_PAA = new Button { Left = 230, Top = 185, Width = 75, Text = "OK" };
+                buttonCancel_PAA = new Button { Left = 315, Top = 185, Width = 75, Text = "РћС‚РјРµРЅР°" };
+
+                buttonOk_PAA.Click += ButtonOk_PAA_Click;
+                buttonCancel_PAA.Click += (s, e) => DialogResult = DialogResult.Cancel;
+
+                Controls.AddRange(new Control[]
+                {
+                    labelCode, textBoxCode_PAA,
+                    labelDate, dateTimePickerRecord_PAA,
+                    labelDur, numericDuration_PAA,
+                    labelTheme, textBoxTheme_PAA,
+                    labelCost, numericCost_PAA,
+                    buttonOk_PAA, buttonCancel_PAA
+                });
+            }
+
+            private void LoadValues_PAA()
+            {
+                textBoxCode_PAA.Text = clip_PAA.Code ?? "";
+                dateTimePickerRecord_PAA.Value = (clip_PAA.RecordDate == default ? DateTime.Today : clip_PAA.RecordDate);
+                numericDuration_PAA.Value = clip_PAA.DurationSec <= 0 ? 1 : clip_PAA.DurationSec;
+                textBoxTheme_PAA.Text = clip_PAA.Theme ?? "";
+                numericCost_PAA.Value = clip_PAA.Cost < 0 ? 0 : clip_PAA.Cost;
+            }
+
+            private void ButtonOk_PAA_Click(object sender, EventArgs e)
+            {
+                string code = (textBoxCode_PAA.Text ?? "").Trim();
+                if (string.IsNullOrWhiteSpace(code))
+                {
+                    MessageBox.Show("РљРѕРґ РєР»РёРїР° РЅРµ РјРѕР¶РµС‚ Р±С‹С‚СЊ РїСѓСЃС‚С‹Рј.");
+                    return;
+                }
+
+                string theme = (textBoxTheme_PAA.Text ?? "").Trim();
+
+                clip_PAA.Code = code;
+                clip_PAA.RecordDate = dateTimePickerRecord_PAA.Value.Date;
+                clip_PAA.DurationSec = (int)numericDuration_PAA.Value;
+                clip_PAA.Theme = theme;
+                clip_PAA.Cost = numericCost_PAA.Value;
+
+                DialogResult = DialogResult.OK;
+            }
+        }
+
+        // ------------------ Help ------------------
+
         private void toolStripMenuItemAbout_PAA_Click(object sender, EventArgs e)
         {
             MessageBox.Show(
-                "Каталог видеоклипов\n\n" +
-                "Разработчик: Панькова А.А. (ПАА)\n" +
-                "Хранение данных: CSV\n" +
-                "Функции: загрузка/сохранение, демонстрационные данные, таблица каталога.",
-                "О программе",
+
+"РљР°С‚Р°Р»РѕРі РІРёРґРµРѕРєР»РёРїРѕРІ\n\nР Р°Р·СЂР°Р±РѕС‚С‡РёРє: РџР°РЅСЊРєРѕРІР° Рђ.Рђ. (РџРђРђ)\nРҐСЂР°РЅРµРЅРёРµ РґР°РЅРЅС‹С…: CSV",
+                "Рћ РїСЂРѕРіСЂР°РјРјРµ",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
         }
@@ -153,14 +438,19 @@ namespace Tyuiu.PankovaPAA.Sprint7.App
         private void toolStripMenuItemGuide_PAA_Click(object sender, EventArgs e)
         {
             MessageBox.Show(
-                "Краткое руководство:\n\n" +
-                "1) Demo — загрузить тестовые данные в таблицу.\n" +
-                "2) Сохранить — сохранить Actors.csv и Clips.csv в папку Data рядом с exe.\n" +
-                "3) Открыть — загрузить CSV из папки Data обратно в таблицу.\n\n" +
-                "Файлы сохраняются в: папка Data (рядом с программой).",
-                "Руководство пользователя",
+                "Р СѓРєРѕРІРѕРґСЃС‚РІРѕ:\n" +
+                "1) Demo вЂ” Р·Р°РіСЂСѓР·РёС‚СЊ С‚РµСЃС‚РѕРІС‹Рµ РґР°РЅРЅС‹Рµ.\n" +
+                "2) Р”РѕР±Р°РІРёС‚СЊ/РР·РјРµРЅРёС‚СЊ вЂ” СѓРїСЂР°РІР»РµРЅРёРµ РєР»РёРїР°РјРё.\n" +
+                "3) РџРѕРёСЃРє/РўРµРјР°/РЎРѕСЂС‚РёСЂРѕРІРєР° вЂ” СѓРїСЂР°РІР»РµРЅРёРµ РѕС‚РѕР±СЂР°Р¶РµРЅРёРµРј.\n" +
+                "4) РЎРѕС…СЂР°РЅРёС‚СЊ/РћС‚РєСЂС‹С‚СЊ вЂ” СЂР°Р±РѕС‚Р° СЃ CSV (РїР°РїРєР° Data).",
+                "Р СѓРєРѕРІРѕРґСЃС‚РІРѕ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
+        }
+
+        private void buttonExit_PAA_Click(object sender, EventArgs e)
+        {
+            Close();
         }
     }
 }

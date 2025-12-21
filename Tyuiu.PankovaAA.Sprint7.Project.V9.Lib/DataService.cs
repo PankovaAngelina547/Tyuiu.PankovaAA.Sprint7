@@ -80,7 +80,7 @@ namespace Tyuiu.PankovaPAA.Sprint7.Lib
 
             string[] lines = File.ReadAllLines(filePath);
 
-            for (int i = 1; i < lines.Length; i++) // пропускаем заголовок
+            for (int i = 1; i < lines.Length; i++)
             {
                 string[] parts = lines[i].Split(Separator);
 
