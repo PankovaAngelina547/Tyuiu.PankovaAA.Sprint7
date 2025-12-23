@@ -2,12 +2,11 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 
 namespace Tyuiu.PankovaPAA.Sprint7.Lib
 {
-    // =======================
     // МОДЕЛИ
-    // =======================
 
     public sealed class Actor
     {
@@ -28,15 +27,63 @@ namespace Tyuiu.PankovaPAA.Sprint7.Lib
         public int ActorId { get; set; }
     }
 
-    // =======================
+    public sealed class CostStats
+    {
+        public int Count { get; set; }
+        public decimal Sum { get; set; }
+        public decimal Avg { get; set; }
+        public decimal Min { get; set; }
+        public decimal Max { get; set; }
+    }
+
+    // СЕРВИСЫ
+
+    public static class StatsService
+    {
+        public static CostStats CalculateCostStats(List<VideoClip> clips)
+        {
+            clips ??= new List<VideoClip>();
+
+            if (clips.Count == 0)
+            {
+                return new CostStats
+                {
+                    Count = 0,
+                    Sum = 0,
+                    Avg = 0,
+                    Min = 0,
+                    Max = 0
+                };
+            }
+
+            return new CostStats
+            {
+                Count = clips.Count,
+                Sum = clips.Sum(c => c.Cost),
+                Avg = clips.Average(c => c.Cost),
+                Min = clips.Min(c => c.Cost),
+                Max = clips.Max(c => c.Cost)
+            };
+        }
+
+        public static Dictionary<string, int> CountByTheme(List<VideoClip> clips)
+        {
+            clips ??= new List<VideoClip>();
+
+            return clips
+                .GroupBy(c => string.IsNullOrWhiteSpace(c.Theme) ? "Без темы" : c.Theme.Trim())
+                .OrderBy(g => g.Key)
+                .ToDictionary(g => g.Key, g => g.Count());
+        }
+    }
+
     // РАБОТА С CSV
-    // =======================
 
     public static class CsvDataService
     {
         private const char Separator = ';';
 
-        // ---------- СОХРАНЕНИЕ ----------
+        //Сохранение
 
         public static void SaveActors(string filePath, List<Actor> actors)
         {
@@ -69,7 +116,7 @@ namespace Tyuiu.PankovaPAA.Sprint7.Lib
             }
         }
 
-        // ---------- ЧТЕНИЕ ----------
+        //Чтение
 
         public static List<Actor> LoadActors(string filePath)
         {
