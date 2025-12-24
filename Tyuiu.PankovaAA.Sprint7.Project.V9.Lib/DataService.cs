@@ -3,28 +3,24 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 
-namespace Tyuiu.PankovaPAA.Sprint7.Lib
+namespace Tyuiu.PankovaAA.Sprint7.Lib  // ИСПРАВЛЕНО: PankovaAA вместо PankovaPAA
 {
-    // МОДЕЛИ
-
-    public sealed class Actor
-    {
-        public int ActorId { get; set; }
-        public string LastName { get; set; } = string.Empty;
-        public string FirstName { get; set; } = string.Empty;
-        public string MiddleName { get; set; } = string.Empty;
-        public string RoleType { get; set; } = string.Empty;
-    }
+    // МОДЕЛИ (ОБНОВЛЕННЫЕ)
 
     public sealed class VideoClip
     {
-        public string Code { get; set; } = string.Empty;
-        public DateTime RecordDate { get; set; }
-        public int DurationSec { get; set; }
+        public int Id { get; set; }
         public string Theme { get; set; } = string.Empty;
-        public decimal Cost { get; set; }
-        public int ActorId { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string DurationText { get; set; } = string.Empty;
+        public int DurationSec { get; set; }
+        public string DateText { get; set; } = string.Empty;
+        public string CostText { get; set; } = string.Empty;
+        public decimal? Cost { get; set; }
+        public string Currency { get; set; } = string.Empty;
+        public string Country { get; set; } = string.Empty;
     }
 
     public sealed class CostStats
@@ -36,7 +32,7 @@ namespace Tyuiu.PankovaPAA.Sprint7.Lib
         public decimal Max { get; set; }
     }
 
-    // СЕРВИСЫ
+    // СЕРВИС СТАТИСТИКИ
 
     public static class StatsService
     {
@@ -44,7 +40,9 @@ namespace Tyuiu.PankovaPAA.Sprint7.Lib
         {
             clips ??= new List<VideoClip>();
 
-            if (clips.Count == 0)
+            var clipsWithCost = clips.Where(c => c.Cost.HasValue).ToList();
+
+            if (clipsWithCost.Count == 0)
             {
                 return new CostStats
                 {
@@ -56,13 +54,15 @@ namespace Tyuiu.PankovaPAA.Sprint7.Lib
                 };
             }
 
+            var costs = clipsWithCost.Select(c => c.Cost.Value).ToList();
+
             return new CostStats
             {
-                Count = clips.Count,
-                Sum = clips.Sum(c => c.Cost),
-                Avg = clips.Average(c => c.Cost),
-                Min = clips.Min(c => c.Cost),
-                Max = clips.Max(c => c.Cost)
+                Count = clipsWithCost.Count,
+                Sum = costs.Sum(),
+                Avg = costs.Average(),
+                Min = costs.Min(),
+                Max = costs.Max()
             };
         }
 
@@ -71,104 +71,278 @@ namespace Tyuiu.PankovaPAA.Sprint7.Lib
             clips ??= new List<VideoClip>();
 
             return clips
-                .GroupBy(c => string.IsNullOrWhiteSpace(c.Theme) ? "Без темы" : c.Theme.Trim())
-                .OrderBy(g => g.Key)
+                .Where(c => !string.IsNullOrWhiteSpace(c.Theme))
+                .GroupBy(c => c.Theme.Trim())
+                .OrderByDescending(g => g.Count())
+                .ThenBy(g => g.Key)
+                .ToDictionary(g => g.Key, g => g.Count());
+        }
+
+        public static Dictionary<string, int> CountByCountry(List<VideoClip> clips)
+        {
+            clips ??= new List<VideoClip>();
+
+            return clips
+                .Where(c => !string.IsNullOrWhiteSpace(c.Country))
+                .GroupBy(c => c.Country.Trim())
+                .OrderByDescending(g => g.Count())
+                .ThenBy(g => g.Key)
                 .ToDictionary(g => g.Key, g => g.Count());
         }
     }
 
-    // РАБОТА С CSV
+    // ПАРСЕР CSV (ДЛЯ ТВОЕГО ФАЙЛА)
 
-    public static class CsvDataService
+    public static class CsvParser_PAA
     {
         private const char Separator = ';';
+        private static readonly CultureInfo CultureInvariant = CultureInfo.InvariantCulture;
 
-        //Сохранение
-
-        public static void SaveActors(string filePath, List<Actor> actors)
+        // Парсинг длительности из текста в секунды
+        public static int ParseDuration(string durationText)
         {
-            using StreamWriter writer = new StreamWriter(filePath, false);
-            writer.WriteLine("ActorId;LastName;FirstName;MiddleName;RoleType");
+            if (string.IsNullOrWhiteSpace(durationText))
+                return 0;
 
-            foreach (var a in actors)
+            int totalSeconds = 0;
+
+            // Паттерны для разбора
+            durationText = durationText.ToLower();
+
+            // Часы
+            var hourMatch = Regex.Match(durationText, @"(\d+)\s*ч");
+            if (hourMatch.Success && int.TryParse(hourMatch.Groups[1].Value, out int hours))
+                totalSeconds += hours * 3600;
+
+            // Минуты
+            var minMatch = Regex.Match(durationText, @"(\d+)\s*мин");
+            if (minMatch.Success && int.TryParse(minMatch.Groups[1].Value, out int minutes))
+                totalSeconds += minutes * 60;
+
+            // Секунды
+            var secMatch = Regex.Match(durationText, @"(\d+)\s*сек");
+            if (secMatch.Success && int.TryParse(secMatch.Groups[1].Value, out int seconds))
+                totalSeconds += seconds;
+
+            return totalSeconds > 0 ? totalSeconds : 0;
+        }
+
+        // Парсинг стоимости из текста
+        public static decimal? ParseCost(string costText, out string currency)
+        {
+            currency = "";
+
+            if (string.IsNullOrWhiteSpace(costText))
+                return null;
+
+            // Очистка текста
+            costText = costText.Trim().ToLower();
+
+            // Определение валюты
+            if (costText.Contains("руб") || costText.Contains("rub"))
+                currency = "RUB";
+            else if (costText.Contains("$") || costText.Contains("доллар"))
+                currency = "USD";
+            else if (costText.Contains("€") || costText.Contains("евро"))
+                currency = "EUR";
+            else if (costText.Contains("р") || costText.Contains("р."))
+                currency = "RUB";
+            else
+                currency = "UNKNOWN";
+
+            // Извлечение числа
+            string numberText = Regex.Replace(costText, @"[^\d.,]", "");
+
+            // Замена запятых на точки для парсинга
+            numberText = numberText.Replace(',', '.');
+
+            // Удаление лишних точек (оставляем только одну)
+            int dotCount = numberText.Count(c => c == '.');
+            if (dotCount > 1)
+            {
+                // Оставляем только последнюю точку как десятичный разделитель
+                int lastDot = numberText.LastIndexOf('.');
+                numberText = numberText.Replace(".", "");
+                numberText = numberText.Insert(lastDot - (dotCount - 1), ".");
+            }
+
+            // Множители для миллиардов/миллионов
+            decimal multiplier = 1;
+            if (costText.Contains("млрд") || costText.Contains("млрд"))
+                multiplier = 1000000000;
+            else if (costText.Contains("млн") || costText.Contains("млн"))
+                multiplier = 1000000;
+            else if (costText.Contains("тыс") || costText.Contains("тыс"))
+                multiplier = 1000;
+
+            if (decimal.TryParse(numberText, NumberStyles.Any, CultureInvariant, out decimal value))
+            {
+                return value * multiplier;
+            }
+
+            return null;
+        }
+
+        // Основной парсер CSV
+        public static List<VideoClip> ParseClipsFromFile(string filePath)
+        {
+            var clips = new List<VideoClip>();
+
+            if (!File.Exists(filePath))
+            {
+                // Если файла нет, создаем тестовые данные
+                CreateSampleCsvFile(filePath);
+                return clips;
+            }
+
+            var lines = File.ReadAllLines(filePath);
+
+            if (lines.Length < 2) // только заголовок
+                return clips;
+
+            // Пропускаем BOM если есть
+            string header = lines[0];
+            if (header.StartsWith("\uFEFF"))
+                header = header.Substring(1);
+
+            for (int i = 1; i < lines.Length; i++)
+            {
+                string line = lines[i];
+                if (string.IsNullOrWhiteSpace(line))
+                    continue;
+
+                // Разбиваем строку с учетом того, что внутри могут быть точки с запятой
+                var parts = SplitCsvLine(line);
+
+                if (parts.Length < 7)
+                    continue;
+
+                try
+                {
+                    // Парсинг стоимости
+                    decimal? cost = ParseCost(parts[5], out string currency);
+
+                    var clip = new VideoClip
+                    {
+                        Id = ParseInt(parts[0]),
+                        Theme = parts[1]?.Trim() ?? "",
+                        Title = parts[2]?.Trim() ?? "",
+                        DurationText = parts[3]?.Trim() ?? "",
+                        DurationSec = ParseDuration(parts[3]),
+                        DateText = parts[4]?.Trim() ?? "",
+                        CostText = parts[5]?.Trim() ?? "",
+                        Cost = cost,
+                        Currency = currency,
+                        Country = parts[6]?.Trim() ?? ""
+                    };
+
+                    clips.Add(clip);
+                }
+                catch (Exception ex)
+                {
+                    // Логируем ошибку, но продолжаем обработку
+                    Console.WriteLine($"Ошибка парсинга строки {i}: {ex.Message}");
+                }
+            }
+
+            return clips;
+        }
+
+        // Сохранение клипов в CSV
+        public static void SaveClipsToFile(string filePath, List<VideoClip> clips)
+        {
+            using StreamWriter writer = new StreamWriter(filePath, false, System.Text.Encoding.UTF8);
+
+            // Заголовок
+            writer.WriteLine("ID;Тема;Название;Длительность ;Дата;Стоимость ;Страна");
+
+            // Данные
+            foreach (var clip in clips)
             {
                 writer.WriteLine(
-                    $"{a.ActorId}{Separator}{a.LastName}{Separator}{a.FirstName}{Separator}{a.MiddleName}{Separator}{a.RoleType}"
+                    $"{clip.Id}{Separator}" +
+                    $"{EscapeCsvField(clip.Theme)}{Separator}" +
+                    $"{EscapeCsvField(clip.Title)}{Separator}" +
+                    $"{EscapeCsvField(clip.DurationText)}{Separator}" +
+                    $"{EscapeCsvField(clip.DateText)}{Separator}" +
+                    $"{EscapeCsvField(clip.CostText)}{Separator}" +
+                    $"{EscapeCsvField(clip.Country)}"
                 );
             }
         }
 
-        public static void SaveClips(string filePath, List<VideoClip> clips)
+        // Создание тестового CSV файла
+        private static void CreateSampleCsvFile(string filePath)
         {
-            using StreamWriter writer = new StreamWriter(filePath, false);
-            writer.WriteLine("Code;RecordDate;DurationSec;Theme;Cost;ActorId");
-
-            foreach (var c in clips)
+            var sampleClips = new List<VideoClip>
             {
-                writer.WriteLine(
-                    $"{c.Code}{Separator}" +
-                    $"{c.RecordDate:yyyy-MM-dd}{Separator}" +
-                    $"{c.DurationSec}{Separator}" +
-                    $"{c.Theme}{Separator}" +
-                    $"{c.Cost.ToString(CultureInfo.InvariantCulture)}{Separator}" +
-                    $"{c.ActorId}"
-                );
-            }
+                new VideoClip { Id = 1, Theme = "Фэнтези", Title = "Властелин колец", DurationText = "12 ч 10 мин", DurationSec = 43800, DateText = "2001—2003 гг.", CostText = "$2,91 млрд", Cost = 2910000000m, Currency = "USD", Country = "США" },
+                new VideoClip { Id = 2, Theme = "Боевик", Title = "Мстители: Финал", DurationText = "3 ч 1 мин", DurationSec = 10860, DateText = "25 апреля 2019 г.", CostText = "2,503 млрд", Cost = 2503000000m, Currency = "USD", Country = "США" },
+                new VideoClip { Id = 3, Theme = "Драма", Title = "Огонь", DurationText = "2 ч 11 мин", DurationSec = 7860, DateText = "24 декабря 2020 г.", CostText = "927379370 руб.", Cost = 927379370m, Currency = "RUB", Country = "Россия" },
+                new VideoClip { Id = 4, Theme = "Детское", Title = "Хранители снов", DurationText = "1 ч 37 мин", DurationSec = 5820, DateText = "22 ноября 2012 г.", CostText = "203528912 $", Cost = 203528912m, Currency = "USD", Country = "США" },
+                new VideoClip { Id = 5, Theme = "Комедия", Title = "Правила съёма: Метод Хитча", DurationText = "1 ч 58 мин", DurationSec = 7080, DateText = "2005 г.", CostText = "371 594 210 долларов", Cost = 371594210m, Currency = "USD", Country = "США" }
+            };
+
+            SaveClipsToFile(filePath, sampleClips);
         }
 
-        //Чтение
+        // Вспомогательные методы
 
-        public static List<Actor> LoadActors(string filePath)
+        private static int ParseInt(string text)
         {
-            List<Actor> result = new List<Actor>();
-
-            if (!File.Exists(filePath))
+            if (int.TryParse(text, out int result))
                 return result;
-
-            string[] lines = File.ReadAllLines(filePath);
-
-            for (int i = 1; i < lines.Length; i++)
-            {
-                string[] parts = lines[i].Split(Separator);
-
-                result.Add(new Actor
-                {
-                    ActorId = int.Parse(parts[0]),
-                    LastName = parts[1],
-                    FirstName = parts[2],
-                    MiddleName = parts[3],
-                    RoleType = parts[4]
-                });
-            }
-
-            return result;
+            return 0;
         }
 
-        public static List<VideoClip> LoadClips(string filePath)
+        private static string EscapeCsvField(string field)
         {
-            List<VideoClip> result = new List<VideoClip>();
+            if (field == null) return "";
 
-            if (!File.Exists(filePath))
-                return result;
-
-            string[] lines = File.ReadAllLines(filePath);
-
-            for (int i = 1; i < lines.Length; i++)
+            // Экранируем кавычки и добавляем кавычки если есть разделитель или кавычки
+            if (field.Contains(Separator) || field.Contains('"') || field.Contains('\n'))
             {
-                string[] parts = lines[i].Split(Separator);
+                return $"\"{field.Replace("\"", "\"\"")}\"";
+            }
+            return field;
+        }
 
-                result.Add(new VideoClip
+        private static string[] SplitCsvLine(string line)
+        {
+            var result = new List<string>();
+            bool inQuotes = false;
+            string currentField = "";
+
+            for (int i = 0; i < line.Length; i++)
+            {
+                char c = line[i];
+
+                if (c == '"')
                 {
-                    Code = parts[0],
-                    RecordDate = DateTime.Parse(parts[1]),
-                    DurationSec = int.Parse(parts[2]),
-                    Theme = parts[3],
-                    Cost = decimal.Parse(parts[4], CultureInfo.InvariantCulture),
-                    ActorId = int.Parse(parts[5])
-                });
+                    // Проверяем на двойные кавычки ""
+                    if (i + 1 < line.Length && line[i + 1] == '"')
+                    {
+                        currentField += '"';
+                        i++; // Пропускаем следующую кавычку
+                    }
+                    else
+                    {
+                        inQuotes = !inQuotes;
+                    }
+                }
+                else if (c == Separator && !inQuotes)
+                {
+                    result.Add(currentField);
+                    currentField = "";
+                }
+                else
+                {
+                    currentField += c;
+                }
             }
 
-            return result;
+            result.Add(currentField); // Последнее поле
+            return result.ToArray();
         }
     }
 }

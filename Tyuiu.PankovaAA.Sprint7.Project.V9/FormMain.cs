@@ -6,662 +6,844 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Windows.Forms;
-using Tyuiu.PankovaPAA.Sprint7.Lib;
+using Tyuiu.PankovaAA.Sprint7.Lib;
 
-namespace Tyuiu.PankovaPAA.Sprint7
+namespace Tyuiu.PankovaAA.Sprint7.Project.V9
 {
     public partial class FormMain : Form
     {
-        private List<Actor> actors_PAA = new List<Actor>();
-        private List<VideoClip> clips_PAA = new List<VideoClip>();
-        private DataTable dataTableClips_PAA = new DataTable();
+        private List<VideoClip> videoClips;
+        private string? currentFilePath;
+        private DataTable? dataTable;
+        private List<VideoClip> originalClips;
+
+        // Элементы управления для поиска/фильтрации
+        private TextBox textBoxSearch_PAA = null!;
+        private ComboBox comboBoxFilterField_PAA = null!;
+        private TextBox textBoxFilterValue_PAA = null!;
+        private ComboBox comboBoxSortField_PAA = null!;
+        private RadioButton radioButtonAsc_PAA = null!;
+        private RadioButton radioButtonDesc_PAA = null!;
 
         public FormMain()
         {
             InitializeComponent();
-            InitializeDataTable_PAA();
-            SetupToolTips_PAA();
-            LoadFromFile_PAA();
-            UpdateActorComboBox_PAA();
-            UpdateDisplay_PAA();
-            UpdateStatisticsAndChart_PAA();
-
-            // 🔴 Добавлены события для автоматического сохранения
-            dataGridViewClips_PAA.CellValueChanged += (s, e) => OnDataChanged_PAA();
-            dataGridViewClips_PAA.RowsRemoved += (s, e) => OnDataChanged_PAA();
-            dataGridViewClips_PAA.UserDeletedRow += (s, e) => OnDataChanged_PAA();
-            dataGridViewClips_PAA.CurrentCellDirtyStateChanged += (s, e) =>
-            {
-                if (dataGridViewClips_PAA.IsCurrentCellDirty)
-                    dataGridViewClips_PAA.CommitEdit(DataGridViewDataErrorContexts.Commit);
-            };
+            InitializeDataTable();
+            InitializeControlPanels();
+            SetupToolTips();
+            videoClips = new List<VideoClip>();
+            originalClips = new List<VideoClip>();
         }
 
-        private void OnDataChanged_PAA()
+        private void InitializeDataTable()
         {
-            // обновить статистику и диаграмму после любых изменений в таблице
-            UpdateStatisticsAndChart_PAA();
+            dataTable = new DataTable();
+            dataGridViewMain_PAA.DataSource = dataTable;
         }
 
-        private bool ValidateClips_PAA(out string errorText)
+        private void InitializeControlPanels()
         {
-            errorText = "";
+            // Панель для поиска и фильтрации
+            Panel panelControls_PAA = new Panel();
+            panelControls_PAA.Dock = DockStyle.Top;
+            panelControls_PAA.Height = 100;
+            panelControls_PAA.BackColor = SystemColors.Control;
+            panelControls_PAA.BorderStyle = BorderStyle.FixedSingle;
 
-            // берём данные из твоего списка клипов
-            var list = clips_PAA;
+            // Поиск
+            Label labelSearch_PAA = new Label();
+            labelSearch_PAA.Text = "Поиск:";
+            labelSearch_PAA.Location = new Point(20, 15);
+            labelSearch_PAA.Size = new Size(50, 25);
+            panelControls_PAA.Controls.Add(labelSearch_PAA);
 
-            for (int i = 0; i < list.Count; i++)
-            {
-                var c = list[i];
+            textBoxSearch_PAA = new TextBox();
+            textBoxSearch_PAA.Location = new Point(75, 15);
+            textBoxSearch_PAA.Size = new Size(200, 25);
+            textBoxSearch_PAA.TextChanged += TextBoxSearch_PAA_TextChanged;
+            panelControls_PAA.Controls.Add(textBoxSearch_PAA);
 
-                if (c == null)
-                {
-                    errorText = $"Строка {i + 1}: пустая запись.";
-                    return false;
-                }
+            // Фильтрация
+            Label labelFilter_PAA = new Label();
+            labelFilter_PAA.Text = "Фильтр по:";
+            labelFilter_PAA.Location = new Point(20, 55);
+            labelFilter_PAA.Size = new Size(70, 25);
+            panelControls_PAA.Controls.Add(labelFilter_PAA);
 
-                if (string.IsNullOrWhiteSpace(c.Code))
-                {
-                    errorText = $"Строка {i + 1}: Code не может быть пустым.";
-                    return false;
-                }
+            comboBoxFilterField_PAA = new ComboBox();
+            comboBoxFilterField_PAA.DropDownStyle = ComboBoxStyle.DropDownList;
+            comboBoxFilterField_PAA.Items.AddRange(new string[] { "Тема", "Страна", "Дата", "Стоимость" });
+            comboBoxFilterField_PAA.Location = new Point(95, 55);
+            comboBoxFilterField_PAA.Size = new Size(100, 25);
+            comboBoxFilterField_PAA.SelectedIndex = 0;
+            comboBoxFilterField_PAA.SelectedIndexChanged += ComboBoxFilterField_PAA_SelectedIndexChanged;
+            panelControls_PAA.Controls.Add(comboBoxFilterField_PAA);
 
-                if (c.DurationSec <= 0)
-                {
-                    errorText = $"Строка {i + 1}: DurationSec должен быть > 0.";
-                    return false;
-                }
+            Label labelFilterValue_PAA = new Label();
+            labelFilterValue_PAA.Text = "Значение:";
+            labelFilterValue_PAA.Location = new Point(205, 55);
+            labelFilterValue_PAA.Size = new Size(70, 25);
+            panelControls_PAA.Controls.Add(labelFilterValue_PAA);
 
-                if (c.Cost < 0)
-                {
-                    errorText = $"Строка {i + 1}: Cost не может быть отрицательной.";
-                    return false;
-                }
+            textBoxFilterValue_PAA = new TextBox();
+            textBoxFilterValue_PAA.Location = new Point(280, 55);
+            textBoxFilterValue_PAA.Size = new Size(150, 25);
+            textBoxFilterValue_PAA.TextChanged += TextBoxFilterValue_PAA_TextChanged;
+            panelControls_PAA.Controls.Add(textBoxFilterValue_PAA);
 
-                if (c.RecordDate > DateTime.Now)
-                {
-                    errorText = $"Строка {i + 1}: Дата записи не может быть в будущем.";
-                    return false;
-                }
-            }
+            // Сортировка
+            Label labelSort_PAA = new Label();
+            labelSort_PAA.Text = "Сортировка:";
+            labelSort_PAA.Location = new Point(450, 15);
+            labelSort_PAA.Size = new Size(80, 25);
+            panelControls_PAA.Controls.Add(labelSort_PAA);
 
-            // проверка уникальности кода
-            var dup = list
-                .Where(x => x != null)
-                .GroupBy(x => x.Code?.Trim(), StringComparer.OrdinalIgnoreCase)
-                .FirstOrDefault(g => !string.IsNullOrWhiteSpace(g.Key) && g.Count() > 1);
+            comboBoxSortField_PAA = new ComboBox();
+            comboBoxSortField_PAA.DropDownStyle = ComboBoxStyle.DropDownList;
+            comboBoxSortField_PAA.Items.AddRange(new string[] { "Название", "Длительность", "Стоимость", "Дата", "Тема" });
+            comboBoxSortField_PAA.Location = new Point(535, 15);
+            comboBoxSortField_PAA.Size = new Size(120, 25);
+            comboBoxSortField_PAA.SelectedIndex = 0;
+            comboBoxSortField_PAA.SelectedIndexChanged += ComboBoxSortField_PAA_SelectedIndexChanged;
+            panelControls_PAA.Controls.Add(comboBoxSortField_PAA);
 
-            if (dup != null)
-            {
-                errorText = $"Код клипа должен быть уникальным. Повтор: {dup.Key}";
-                return false;
-            }
+            radioButtonAsc_PAA = new RadioButton();
+            radioButtonAsc_PAA.Text = "По возрастанию";
+            radioButtonAsc_PAA.Checked = true;
+            radioButtonAsc_PAA.Location = new Point(535, 45);
+            radioButtonAsc_PAA.Size = new Size(140, 25);
+            radioButtonAsc_PAA.CheckedChanged += RadioButtonSort_CheckedChanged;
+            panelControls_PAA.Controls.Add(radioButtonAsc_PAA);
 
-            return true;
+            radioButtonDesc_PAA = new RadioButton();
+            radioButtonDesc_PAA.Text = "По убыванию";
+            radioButtonDesc_PAA.Location = new Point(535, 70);
+            radioButtonDesc_PAA.Size = new Size(120, 25);
+            radioButtonDesc_PAA.CheckedChanged += RadioButtonSort_CheckedChanged;
+            panelControls_PAA.Controls.Add(radioButtonDesc_PAA);
+
+            // Кнопка Графика
+            Button buttonChartNow_PAA = new Button();
+            buttonChartNow_PAA.Text = "Показать график";
+            buttonChartNow_PAA.Location = new Point(700, 40);
+            buttonChartNow_PAA.Size = new Size(150, 30);
+            buttonChartNow_PAA.Click += ButtonChartNow_PAA_Click;
+            panelControls_PAA.Controls.Add(buttonChartNow_PAA);
+
+            // Кнопка Статистики
+            Button buttonStatsNow_PAA = new Button();
+            buttonStatsNow_PAA.Text = "Показать статистику";
+            buttonStatsNow_PAA.Location = new Point(860, 40);
+            buttonStatsNow_PAA.Size = new Size(150, 30);
+            buttonStatsNow_PAA.Click += ButtonStatsNow_PAA_Click;
+            panelControls_PAA.Controls.Add(buttonStatsNow_PAA);
+
+            // Кнопка сброса
+            Button buttonResetNow_PAA = new Button();
+            buttonResetNow_PAA.Text = "Сбросить все";
+            buttonResetNow_PAA.Location = new Point(1020, 40);
+            buttonResetNow_PAA.Size = new Size(100, 30);
+            buttonResetNow_PAA.Click += ButtonResetNow_PAA_Click;
+            panelControls_PAA.Controls.Add(buttonResetNow_PAA);
+
+            // Добавляем панель на форму
+            this.Controls.Add(panelControls_PAA);
+            panelControls_PAA.BringToFront();
+
+            // Перемещаем DataGridView ниже
+            dataGridViewMain_PAA.Top = panelControls_PAA.Bottom;
+            dataGridViewMain_PAA.Height = this.ClientSize.Height - panelControls_PAA.Height - panelBottom_PAA.Height - 50;
         }
 
-        private void UpdateStatisticsAndChart_PAA()
+        private void SetupToolTips()
         {
-            var list = clips_PAA.ToList();
-            var stats = Lib.StatsService.CalculateCostStats(list);
-
-            if (stats.Count == 0)
-            {
-                // Обновляем ВСЕ label статистики
-                labelStats_PAA.Text = "Нет данных";
-                labelCount_PAA.Text = "Количество: 0";
-                labelSum_PAA.Text = "Сумма: 0,00";
-                labelAvg_PAA.Text = "Среднее: 0,00";
-                labelMin_PAA.Text = "Минимум: 0,00";
-                labelMax_PAA.Text = "Максимум: 0,00";
-
-                // Очищаем текстовое поле статистики по темам
-                textBoxStats_PAA.Text = "Нет данных для отображения статистики по темам.";
-
-                // Очищаем диаграмму
-                if (chartThemes_PAA.Series.Count > 0)
-                {
-                    var series = chartThemes_PAA.Series[0];
-                    series.Points.Clear();
-                    series.ChartType = System.Windows.Forms.DataVisualization.Charting.SeriesChartType.Column;
-                    series.IsValueShownAsLabel = true;
-                }
-                return;
-            }
-
-            // Обновляем заголовок
-            labelStats_PAA.Text = "Общая статистика:";
-
-            // Обновляем ВСЕ label статистики
-            labelCount_PAA.Text = $"Количество: {stats.Count}";
-            labelSum_PAA.Text = $"Сумма: {stats.Sum:F2}";
-            labelAvg_PAA.Text = $"Среднее: {stats.Avg:F2}";
-            labelMin_PAA.Text = $"Минимум: {stats.Min:F2}";
-            labelMax_PAA.Text = $"Максимум: {stats.Max:F2}";
-
-            // Обновляем статистику по темам
-            var map = Lib.StatsService.CountByTheme(list);
-            UpdateThemeStats_PAA(map);
-
-            // Обновляем диаграмму
-            if (chartThemes_PAA.Series.Count > 0)
-            {
-                var series = chartThemes_PAA.Series[0];
-                series.Points.Clear();
-                series.ChartType = System.Windows.Forms.DataVisualization.Charting.SeriesChartType.Column;
-                series.IsValueShownAsLabel = true;
-
-                foreach (var kv in map)
-                {
-                    series.Points.AddXY(kv.Key, kv.Value);
-                }
-            }
+            toolTip_PAA.SetToolTip(buttonHelp_PAA, "Справка");
+            toolTip_PAA.SetToolTip(buttonAbout_PAA, "О программе");
         }
 
-        private void UpdateThemeStats_PAA(Dictionary<string, int> map)
+        private void FormMain_Load(object? sender, EventArgs e)
         {
-            if (map == null || map.Count == 0)
-            {
-                textBoxStats_PAA.Text = "Нет данных по темам.";
-                return;
-            }
+            labelFilterInfo_PAA.Visible = false;
+            labelSortInfo_PAA.Visible = false;
 
-            StringBuilder sb = new StringBuilder();
-            sb.AppendLine("СТАТИСТИКА ПО ТЕМАМ:");
-            sb.AppendLine("════════════════════");
-
-            foreach (var kv in map.OrderByDescending(x => x.Value))
-            {
-                sb.AppendLine($"{kv.Key}: {kv.Value} клипов");
-            }
-
-            textBoxStats_PAA.Text = sb.ToString();
+            // ПУСТАЯ ТАБЛИЦА ПРИ ЗАПУСКЕ
+            // Ничего не загружаем
         }
 
-        private void InitializeDataTable_PAA()
-        {
-            dataTableClips_PAA.Columns.Add("Код", typeof(string));
-            dataTableClips_PAA.Columns.Add("Дата записи", typeof(DateTime));
-            dataTableClips_PAA.Columns.Add("Длительность (сек)", typeof(int));
-            dataTableClips_PAA.Columns.Add("Тема", typeof(string));
-            dataTableClips_PAA.Columns.Add("Стоимость", typeof(decimal));
-            dataTableClips_PAA.Columns.Add("Актёр", typeof(string));
-            dataTableClips_PAA.Columns.Add("ID актёра", typeof(int));
-
-            dataGridViewClips_PAA.DataSource = dataTableClips_PAA;
-            dataGridViewClips_PAA.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
-            dataGridViewClips_PAA.ReadOnly = false;
-            dataGridViewClips_PAA.AllowUserToAddRows = true;
-            dataGridViewClips_PAA.AllowUserToDeleteRows = true;
-        }
-
-        private void SetupToolTips_PAA()
-        {
-            var toolTip_PAA = new ToolTip();
-            toolTip_PAA.SetToolTip(buttonAddClip_PAA, "Добавить новый видео-клип");
-            toolTip_PAA.SetToolTip(buttonSave_PAA, "Сохранить все изменения в файлы");
-            toolTip_PAA.SetToolTip(buttonLoad_PAA, "Загрузить данные из файлов");
-            toolTip_PAA.SetToolTip(buttonSearch_PAA, "Поиск клипов по теме");
-            toolTip_PAA.SetToolTip(buttonSort_PAA, "Сортировка по стоимости (от большего к меньшему)");
-            toolTip_PAA.SetToolTip(buttonFilter_PAA, "Фильтр по длительности (в секундах)");
-            toolTip_PAA.SetToolTip(buttonStats_PAA, "Показать подробную статистику");
-            toolTip_PAA.SetToolTip(buttonChart_PAA, "Показать график распределения по темам");
-            toolTip_PAA.SetToolTip(buttonExportExcel_PAA, "Экспортировать данные в CSV файл");
-            toolTip_PAA.SetToolTip(buttonAbout_PAA, "Показать информацию о программе");
-            toolTip_PAA.SetToolTip(buttonHelp_PAA, "Показать справку по использованию программы");
-            toolTip_PAA.SetToolTip(textBoxCode_PAA, "Введите уникальный код клипа");
-            toolTip_PAA.SetToolTip(textBoxTheme_PAA, "Введите тему клипа");
-            toolTip_PAA.SetToolTip(dateTimePicker_PAA, "Выберите дату записи клипа");
-            toolTip_PAA.SetToolTip(numericUpDownDuration_PAA, "Введите длительность в секундах");
-            toolTip_PAA.SetToolTip(numericUpDownCost_PAA, "Введите стоимость клипа");
-            toolTip_PAA.SetToolTip(comboBoxActor_PAA, "Выберите актёра");
-            toolTip_PAA.SetToolTip(textBoxSearch_PAA, "Введите тему для поиска");
-            toolTip_PAA.SetToolTip(numericUpDownFilterMin_PAA, "Минимальная длительность в секундах");
-            toolTip_PAA.SetToolTip(numericUpDownFilterMax_PAA, "Максимальная длительность в секундах");
-            toolTip_PAA.SetToolTip(buttonClearSearch_PAA, "Сбросить поиск и показать все данные");
-        }
-
-        private void buttonAddClip_PAA_Click(object sender, EventArgs e)
+        // ========== ЗАГРУЗКА CSV ФАЙЛА (ИСПРАВЛЕНО для ;) ==========
+        private void LoadCSVFile(string filePath)
         {
             try
             {
-                if (comboBoxActor_PAA.SelectedIndex < 0)
+                videoClips.Clear();
+                originalClips.Clear();
+                currentFilePath = filePath;
+
+                // Читаем все строки из CSV файла
+                string[] lines = File.ReadAllLines(filePath, Encoding.UTF8);
+
+                if (lines.Length == 0)
                 {
-                    MessageBox.Show("Выберите актёра", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show("Файл пуст", "Ошибка",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
 
-                var newClip = new Lib.VideoClip
+                // Пропускаем заголовок (первую строку)
+                for (int i = 1; i < lines.Length; i++)
                 {
-                    Code = textBoxCode_PAA.Text.Trim(),
-                    RecordDate = dateTimePicker_PAA.Value,
-                    DurationSec = (int)numericUpDownDuration_PAA.Value,
-                    Theme = textBoxTheme_PAA.Text.Trim(),
-                    Cost = numericUpDownCost_PAA.Value,
-                    ActorId = (int)comboBoxActor_PAA.SelectedValue
-                };
+                    string line = lines[i];
+                    if (string.IsNullOrWhiteSpace(line))
+                        continue;
 
-                // Валидация
-                if (string.IsNullOrEmpty(newClip.Code))
-                {
-                    MessageBox.Show("Введите код клипа", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
+                    // Разделяем строку по ТОЧКЕ С ЗАПЯТОЙ
+                    string[] parts = line.Split(';');
 
-                if (newClip.DurationSec <= 0)
-                {
-                    MessageBox.Show("Длительность должна быть больше 0 секунд", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-
-                if (newClip.Cost < 0)
-                {
-                    MessageBox.Show("Стоимость не может быть отрицательной", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-
-                if (newClip.RecordDate > DateTime.Now)
-                {
-                    MessageBox.Show("Дата записи не может быть в будущем", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-
-                // Проверка уникальности кода
-                if (clips_PAA.Any(c => c.Code.Equals(newClip.Code, StringComparison.OrdinalIgnoreCase)))
-                {
-                    MessageBox.Show($"Код '{newClip.Code}' уже существует. Используйте уникальный код.", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-
-                clips_PAA.Add(newClip);
-                AddClipToTable_PAA(newClip);
-                SaveToFile_PAA();
-                OnDataChanged_PAA();
-
-                // Сброс полей ввода
-                textBoxCode_PAA.Clear();
-                textBoxTheme_PAA.Clear();
-                numericUpDownDuration_PAA.Value = 60;
-                numericUpDownCost_PAA.Value = 0;
-
-                MessageBox.Show("Клип успешно добавлен", "Успех", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Ошибка добавления клипа: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
-        private void AddClipToTable_PAA(Lib.VideoClip clip)
-        {
-            if (clip == null) return;
-
-            var actorName = "Неизвестно";
-            if (actors_PAA != null)
-            {
-                var actor = actors_PAA.FirstOrDefault(a => a.ActorId == clip.ActorId);
-                actorName = actor?.LastName ?? "Неизвестно";
-            }
-
-            dataTableClips_PAA.Rows.Add(
-                clip.Code ?? "",
-                clip.RecordDate,
-                clip.DurationSec,
-                clip.Theme ?? "",
-                clip.Cost,
-                actorName,
-                clip.ActorId
-            );
-        }
-
-        private void UpdateActorComboBox_PAA()
-        {
-            if (actors_PAA != null && actors_PAA.Count > 0)
-            {
-                comboBoxActor_PAA.DataSource = actors_PAA;
-                comboBoxActor_PAA.DisplayMember = "LastName";
-                comboBoxActor_PAA.ValueMember = "ActorId";
-            }
-            else
-            {
-                comboBoxActor_PAA.DataSource = null;
-                comboBoxActor_PAA.Items.Clear();
-                comboBoxActor_PAA.Text = "Нет актёров";
-            }
-        }
-
-        private void UpdateDisplay_PAA()
-        {
-            dataTableClips_PAA.Rows.Clear();
-
-            foreach (var clip in clips_PAA)
-            {
-                AddClipToTable_PAA(clip);
-            }
-        }
-
-        private void LoadFromFile_PAA()
-        {
-            try
-            {
-                actors_PAA = Lib.CsvDataService.LoadActors("actors.csv");
-                clips_PAA = Lib.CsvDataService.LoadClips("clips.csv");
-
-                UpdateDisplay_PAA();
-                UpdateActorComboBox_PAA();
-                OnDataChanged_PAA();
-                MessageBox.Show("Данные успешно загружены из файлов", "Успех", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Ошибка загрузки данных: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
-        private void SaveToFile_PAA()
-        {
-            try
-            {
-                if (!ValidateClips_PAA(out string err))
-                {
-                    MessageBox.Show(err, "Ошибка данных", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-
-                // Обновляем список клипов из DataGridView
-                clips_PAA.Clear();
-                foreach (DataRow row in dataTableClips_PAA.Rows)
-                {
-                    if (row[0] != DBNull.Value)
+                    // Проверяем количество колонок
+                    if (parts.Length >= 6)
                     {
-                        clips_PAA.Add(new Lib.VideoClip
+                        int idIndex = 0;
+                        int themeIndex = 1;
+                        int titleIndex = 2;
+                        int durationIndex = 3;
+                        int dateIndex = 4;
+                        int costIndex = 5;
+                        int countryIndex = 6;
+
+                        // Если есть ID в первой колонке, смещаем индексы
+                        if (parts.Length >= 7)
                         {
-                            Code = row[0].ToString(),
-                            RecordDate = (DateTime)row[1],
-                            DurationSec = (int)row[2],
-                            Theme = row[3].ToString(),
-                            Cost = (decimal)row[4],
-                            ActorId = row[6] != DBNull.Value ? (int)row[6] : 0
-                        });
-                    }
-                }
-
-                Lib.CsvDataService.SaveActors("actors.csv", actors_PAA);
-                Lib.CsvDataService.SaveClips("clips.csv", clips_PAA);
-
-                OnDataChanged_PAA();
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Ошибка сохранения данных: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
-        private void buttonSave_PAA_Click(object sender, EventArgs e)
-        {
-            SaveToFile_PAA();
-            MessageBox.Show("Данные успешно сохранены в файлы", "Успех", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
-
-        private void buttonLoad_PAA_Click(object sender, EventArgs e)
-        {
-            LoadFromFile_PAA();
-        }
-
-        private void buttonSearch_PAA_Click(object sender, EventArgs e)
-        {
-            string searchTerm = textBoxSearch_PAA.Text.Trim();
-            if (string.IsNullOrEmpty(searchTerm))
-            {
-                MessageBox.Show("Введите тему для поиска", "Поиск", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            var filtered = clips_PAA.Where(c =>
-                c.Theme.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)).ToList();
-
-            dataTableClips_PAA.Rows.Clear();
-            foreach (var clip in filtered)
-            {
-                AddClipToTable_PAA(clip);
-            }
-            OnDataChanged_PAA();
-
-            MessageBox.Show($"Найдено {filtered.Count} клипов по теме '{searchTerm}'",
-                "Результаты поиска", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
-
-        private void buttonClearSearch_PAA_Click(object sender, EventArgs e)
-        {
-            textBoxSearch_PAA.Clear();
-            UpdateDisplay_PAA();
-            OnDataChanged_PAA();
-            MessageBox.Show("Поиск сброшен. Отображаются все данные.", "Поиск", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
-
-        private void buttonSort_PAA_Click(object sender, EventArgs e)
-        {
-            if (clips_PAA.Count == 0)
-            {
-                MessageBox.Show("Нет данных для сортировки", "Сортировка", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            var sorted = clips_PAA.OrderByDescending(c => c.Cost).ToList();
-
-            dataTableClips_PAA.Rows.Clear();
-            foreach (var clip in sorted)
-            {
-                AddClipToTable_PAA(clip);
-            }
-            OnDataChanged_PAA();
-
-            MessageBox.Show("Данные отсортированы по стоимости (от большей к меньшей)",
-                "Сортировка", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
-
-        private void buttonFilter_PAA_Click(object sender, EventArgs e)
-        {
-            int minDuration = (int)numericUpDownFilterMin_PAA.Value;
-            int maxDuration = (int)numericUpDownFilterMax_PAA.Value;
-
-            if (minDuration > maxDuration)
-            {
-                MessageBox.Show("Минимальная длительность не может быть больше максимальной",
-                    "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            var filtered = clips_PAA.Where(c =>
-                c.DurationSec >= minDuration && c.DurationSec <= maxDuration).ToList();
-
-            dataTableClips_PAA.Rows.Clear();
-            foreach (var clip in filtered)
-            {
-                AddClipToTable_PAA(clip);
-            }
-            OnDataChanged_PAA();
-
-            MessageBox.Show($"Найдено {filtered.Count} клипов с длительностью от {minDuration} до {maxDuration} секунд",
-                "Результаты фильтрации", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
-
-        private void buttonStats_PAA_Click(object sender, EventArgs e)
-        {
-            if (clips_PAA.Count == 0)
-            {
-                MessageBox.Show("Нет данных для отображения статистики", "Статистика", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            string statsText = $"ПОДРОБНАЯ СТАТИСТИКА:\n";
-            statsText += $"══════════════════════\n";
-            statsText += $"Общее количество клипов: {clips_PAA.Count}\n";
-
-            var stats = Lib.StatsService.CalculateCostStats(clips_PAA);
-            statsText += $"Общая стоимость всех клипов: {stats.Sum:F2} руб.\n";
-            statsText += $"Средняя стоимость клипа: {stats.Avg:F2} руб.\n";
-            statsText += $"Самый дорогой клип: {stats.Max:F2} руб.\n";
-            statsText += $"Самый дешёвый клип: {stats.Min:F2} руб.\n\n";
-
-            var byTheme = Lib.StatsService.CountByTheme(clips_PAA);
-            statsText += $"РАСПРЕДЕЛЕНИЕ ПО ТЕМАМ:\n";
-            statsText += $"══════════════════════\n";
-
-            foreach (var kv in byTheme.OrderByDescending(x => x.Value))
-            {
-                statsText += $"{kv.Key}: {kv.Value} клипов\n";
-            }
-
-            statsText += $"\nСАМАЯ ПОПУЛЯРНАЯ ТЕМА: {byTheme.OrderByDescending(x => x.Value).FirstOrDefault().Key}";
-
-            MessageBox.Show(statsText, "Подробная статистика", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
-
-        private void buttonChart_PAA_Click(object sender, EventArgs e)
-        {
-            if (clips_PAA.Count == 0)
-            {
-                MessageBox.Show("Нет данных для построения графика", "График", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            var byTheme = Lib.StatsService.CountByTheme(clips_PAA);
-
-            string chartText = "ГРАФИК РАСПРЕДЕЛЕНИЯ КЛИПОВ ПО ТЕМАМ:\n";
-            chartText += "═══════════════════════════════\n";
-
-            foreach (var kv in byTheme.OrderByDescending(x => x.Value))
-            {
-                chartText += $"{kv.Key}: {new string('█', kv.Value)} ({kv.Value})\n";
-            }
-
-            MessageBox.Show(chartText, "График распределения", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
-
-        private void buttonExportExcel_PAA_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                using (SaveFileDialog saveDialog = new SaveFileDialog())
-                {
-                    saveDialog.Filter = "CSV файлы (*.csv)|*.csv|Текстовые файлы (*.txt)|*.txt|Все файлы (*.*)|*.*";
-                    saveDialog.Title = "Экспорт данных";
-                    saveDialog.FileName = $"видеоклипы_экспорт_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
-                    saveDialog.DefaultExt = "csv";
-
-                    if (saveDialog.ShowDialog() == DialogResult.OK)
-                    {
-                        using (StreamWriter writer = new StreamWriter(saveDialog.FileName, false, Encoding.UTF8))
+                            // Есть ID колонка, используем ее
+                            idIndex = 0;
+                            themeIndex = 1;
+                            titleIndex = 2;
+                            durationIndex = 3;
+                            dateIndex = 4;
+                            costIndex = 5;
+                            countryIndex = 6;
+                        }
+                        else
                         {
-                            // Заголовки
-                            for (int i = 0; i < dataGridViewClips_PAA.Columns.Count - 1; i++)
-                            {
-                                writer.Write($"\"{dataGridViewClips_PAA.Columns[i].HeaderText}\"");
-                                if (i < dataGridViewClips_PAA.Columns.Count - 2) writer.Write(";");
-                            }
-                            writer.WriteLine();
-
-                            // Данные
-                            for (int i = 0; i < dataGridViewClips_PAA.Rows.Count - 1; i++)
-                            {
-                                for (int j = 0; j < dataGridViewClips_PAA.Columns.Count - 1; j++)
-                                {
-                                    var value = dataGridViewClips_PAA.Rows[i].Cells[j].Value;
-                                    writer.Write($"\"{value?.ToString() ?? ""}\"");
-                                    if (j < dataGridViewClips_PAA.Columns.Count - 2) writer.Write(";");
-                                }
-                                writer.WriteLine();
-                            }
+                            // Нет ID, генерируем его
+                            idIndex = -1;
+                            themeIndex = 0;
+                            titleIndex = 1;
+                            durationIndex = 2;
+                            dateIndex = 3;
+                            costIndex = 4;
+                            countryIndex = 5;
                         }
 
-                        MessageBox.Show($"Данные успешно экспортированы в файл:\n{saveDialog.FileName}\n\n" +
-                                      $"Всего экспортировано: {dataGridViewClips_PAA.Rows.Count - 1} записей",
-                            "Экспорт завершен", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        var clip = new VideoClip
+                        {
+                            Id = idIndex >= 0 ? int.Parse(parts[idIndex].Trim()) : i,
+                            Theme = parts[themeIndex].Trim(),
+                            Title = parts[titleIndex].Trim(),
+                            DurationText = parts[durationIndex].Trim(),
+                            DurationSec = ParseDuration(parts[durationIndex].Trim()),
+                            DateText = parts[dateIndex].Trim(),
+                            CostText = parts[costIndex].Trim(),
+                            Cost = ParseCost(parts[costIndex].Trim()),
+                            Currency = ExtractCurrency(parts[costIndex].Trim()),
+                            Country = parts[countryIndex].Trim()
+                        };
+
+                        videoClips.Add(clip);
                     }
                 }
+
+                // Сохраняем оригинальную копию
+                originalClips = new List<VideoClip>(videoClips);
+
+                // Обновляем интерфейс
+                UpdateDataGridView();
+                UpdateStats();
+                ApplyFiltersAndSort();
+
+                this.Text = $"Каталог видеоклипов - Панькова А.А. [{Path.GetFileName(filePath)}]";
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Ошибка экспорта данных:\n{ex.Message}",
+                MessageBox.Show($"Ошибка при загрузке файла:\n{ex.Message}",
                     "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
-        private void buttonAbout_PAA_Click(object sender, EventArgs e)
+        // Парсинг длительности из строки (например: "2 ч 58 мин" в секунды)
+        private int ParseDuration(string durationText)
         {
-            string aboutText = "КАТАЛОГ ВИДЕОКЛИПОВ\n" +
-                             "═══════════════════\n\n" +
-                             "Разработчик: Панькова Ангелина Алексеевна\n" +
-                             "Группа: ПИНб-25-1\n\n" +
-                             "Программа разработана в рамках изучения языка C#\n\n" +
-                             "Тюменский индустриальный университет (с) 2025\n" +
-                             "Высшая школа цифровых технологий (с) 2025";
-
-            MessageBox.Show(aboutText, "О программе", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
-
-        private void buttonHelp_PAA_Click(object sender, EventArgs e)
-        {
-            string helpText = "РУКОВОДСТВО ПОЛЬЗОВАТЕЛЯ\n" +
-                            "══════════════════════\n\n" +
-                            "1. ДОБАВЛЕНИЕ НОВОГО КЛИПА:\n" +
-                            "   • Заполните все поля: Код, Тема, Дата, Длительность, Стоимость\n" +
-                            "   • Выберите актёра из списка\n" +
-                            "   • Нажмите кнопку 'Добавить клип'\n\n" +
-                            "2. РЕДАКТИРОВАНИЕ ДАННЫХ:\n" +
-                            "   • Кликните дважды на ячейке в таблице\n" +
-                            "   • Внесите изменения\n" +
-                            "   • Данные сохраняются автоматически\n\n" +
-                            "3. ПОИСК КЛИПОВ:\n" +
-                            "   • Введите тему в поле поиска\n" +
-                            "   • Нажмите кнопку 'Найти'\n" +
-                            "   • Для сброса поиска нажмите 'Сбросить'\n\n" +
-                            "4. СОРТИРОВКА:\n" +
-                            "   • Нажмите 'Сортировать' для сортировки по стоимости\n" +
-                            "   • Отсортируется от самой высокой к самой низкой стоимости\n\n" +
-                            "5. ФИЛЬТРАЦИЯ:\n" +
-                            "   • Укажите минимальную и максимальную длительность\n" +
-                            "   • Нажмите 'Применить'\n\n" +
-                            "6. СТАТИСТИКА И ГРАФИКИ:\n" +
-                            "   • Нажмите 'Статистика' для подробной статистики\n" +
-                            "   • Нажмите 'График' для визуализации данных\n\n" +
-                            "7. РАБОТА С ФАЙЛАМИ:\n" +
-                            "   • 'Загрузить' - загрузить данные из CSV файлов\n" +
-                            "   • 'Сохранить' - сохранить данные в CSV файлы\n" +
-                            "   • 'Excel' - экспортировать данные в CSV файл\n\n" +
-                            "8. ДОПОЛНИТЕЛЬНО:\n" +
-                            "   • 'О программе' - информация о разработчике\n" +
-                            "   • 'Справка' - это руководство пользователя\n" +
-                            "   • 'Выход' - закрыть программу\n\n" +
-                            "Все данные автоматически сохраняются при изменении!";
-
-            MessageBox.Show(helpText, "Справка", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
-
-        private void buttonExit_PAA_Click(object sender, EventArgs e)
-        {
-            var result = MessageBox.Show("Вы уверены, что хотите выйти из программы?\n" +
-                                       "Все несохраненные изменения будут потеряны.",
-                                       "Выход",
-                                       MessageBoxButtons.YesNo,
-                                       MessageBoxIcon.Question);
-
-            if (result == DialogResult.Yes)
+            try
             {
-                SaveToFile_PAA(); 
-                Application.Exit();
+                durationText = durationText.ToLower().Replace(" ", "");
+                int hours = 0;
+                int minutes = 0;
+
+                if (durationText.Contains("ч"))
+                {
+                    string hourPart = durationText.Substring(0, durationText.IndexOf("ч")).Trim();
+                    int.TryParse(new string(hourPart.Where(char.IsDigit).ToArray()), out hours);
+                }
+
+                if (durationText.Contains("мин"))
+                {
+                    string minPart = durationText;
+                    if (durationText.Contains("ч"))
+                    {
+                        minPart = durationText.Substring(durationText.IndexOf("ч") + 1);
+                    }
+                    minPart = minPart.Substring(0, minPart.IndexOf("мин")).Trim();
+                    int.TryParse(new string(minPart.Where(char.IsDigit).ToArray()), out minutes);
+                }
+
+                return hours * 3600 + minutes * 60;
+            }
+            catch
+            {
+                return 0;
             }
         }
 
-        private void toolStripMenuItemAbout_PAA_Click(object sender, EventArgs e)
+        // Парсинг стоимости из строки - ИСПРАВЛЕНО на decimal?
+        private decimal? ParseCost(string costText)
         {
-            buttonAbout_PAA_Click(sender, e);
+            try
+            {
+                // Убираем лишние пробелы и приводим к нижнему регистру
+                costText = costText.Trim().ToLower();
+
+                // Удаляем все нецифровые символы, кроме точки, запятой и минуса
+                string numericString = new string(costText
+                    .Where(c => char.IsDigit(c) || c == '.' || c == ',' || c == '-')
+                    .ToArray());
+
+                if (string.IsNullOrEmpty(numericString))
+                    return null;
+
+                // Заменяем запятую на точку для парсинга
+                numericString = numericString.Replace(',', '.');
+
+                if (decimal.TryParse(numericString, out decimal result))
+                {
+                    // Проверяем множители
+                    if (costText.Contains("млрд") || costText.Contains("billion"))
+                        result *= 1000000000;
+                    else if (costText.Contains("млн") || costText.Contains("million"))
+                        result *= 1000000;
+                    else if (costText.Contains("тыс") || costText.Contains("thousand"))
+                        result *= 1000;
+
+                    return result;
+                }
+                return null;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
-        private void toolStripMenuItemGuide_PAA_Click(object sender, EventArgs e)
+        // Извлечение валюты из строки стоимости
+        private string ExtractCurrency(string costText)
         {
-            buttonHelp_PAA_Click(sender, e);
+            costText = costText.ToLower();
+            if (costText.Contains("$") || costText.Contains("доллар") || costText.Contains("usd"))
+                return "USD";
+            if (costText.Contains("€") || costText.Contains("евро") || costText.Contains("eur"))
+                return "EUR";
+            if (costText.Contains("₽") || costText.Contains("руб") || costText.Contains("rub"))
+                return "RUB";
+            return "N/A";
+        }
+
+        // === ОБРАБОТЧИКИ ПОИСКА И ФИЛЬТРАЦИИ В РЕАЛЬНОМ ВРЕМЕНИ ===
+        private void TextBoxSearch_PAA_TextChanged(object? sender, EventArgs e)
+        {
+            ApplyFiltersAndSort();
+        }
+
+        private void ComboBoxFilterField_PAA_SelectedIndexChanged(object? sender, EventArgs e)
+        {
+            if (!string.IsNullOrEmpty(textBoxFilterValue_PAA.Text))
+            {
+                ApplyFiltersAndSort();
+            }
+        }
+
+        private void TextBoxFilterValue_PAA_TextChanged(object? sender, EventArgs e)
+        {
+            ApplyFiltersAndSort();
+        }
+
+        private void ComboBoxSortField_PAA_SelectedIndexChanged(object? sender, EventArgs e)
+        {
+            ApplyFiltersAndSort();
+        }
+
+        private void RadioButtonSort_CheckedChanged(object? sender, EventArgs e)
+        {
+            ApplyFiltersAndSort();
+        }
+
+        private void ApplyFiltersAndSort()
+        {
+            if (originalClips == null || originalClips.Count == 0)
+                return;
+
+            List<VideoClip> filteredClips = new List<VideoClip>(originalClips);
+
+            // Применяем поиск
+            string searchTerm = textBoxSearch_PAA.Text.Trim();
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                filteredClips = filteredClips.Where(clip =>
+                    (clip.Title?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (clip.Theme?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (clip.Country?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (clip.DateText?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (clip.CostText?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false)
+                ).ToList();
+            }
+
+            // Применяем фильтр
+            string filterValue = textBoxFilterValue_PAA.Text.Trim();
+            if (!string.IsNullOrWhiteSpace(filterValue))
+            {
+                string filterBy = comboBoxFilterField_PAA.SelectedItem?.ToString() ?? "Тема";
+
+                switch (filterBy)
+                {
+                    case "Тема":
+                        filteredClips = filteredClips.Where(c =>
+                            c.Theme?.Contains(filterValue, StringComparison.OrdinalIgnoreCase) ?? false).ToList();
+                        break;
+                    case "Страна":
+                        filteredClips = filteredClips.Where(c =>
+                            c.Country?.Contains(filterValue, StringComparison.OrdinalIgnoreCase) ?? false).ToList();
+                        break;
+                    case "Дата":
+                        filteredClips = filteredClips.Where(c =>
+                            c.DateText?.Contains(filterValue, StringComparison.OrdinalIgnoreCase) ?? false).ToList();
+                        break;
+                    case "Стоимость":
+                        filteredClips = filteredClips.Where(c =>
+                            c.CostText?.Contains(filterValue, StringComparison.OrdinalIgnoreCase) ?? false).ToList();
+                        break;
+                }
+            }
+
+            // Применяем сортировку
+            string sortBy = comboBoxSortField_PAA.SelectedItem?.ToString() ?? "Название";
+            bool ascending = radioButtonAsc_PAA.Checked;
+
+            switch (sortBy)
+            {
+                case "Название":
+                    filteredClips = ascending
+                        ? filteredClips.OrderBy(c => c.Title ?? "").ToList()
+                        : filteredClips.OrderByDescending(c => c.Title ?? "").ToList();
+                    break;
+                case "Длительность":
+                    filteredClips = ascending
+                        ? filteredClips.OrderBy(c => c.DurationSec).ToList()
+                        : filteredClips.OrderByDescending(c => c.DurationSec).ToList();
+                    break;
+                case "Стоимость":
+                    // ИСПРАВЛЕНО: используется decimal? и 0m
+                    filteredClips = ascending
+                        ? filteredClips.OrderBy(c => c.Cost ?? 0m).ToList()
+                        : filteredClips.OrderByDescending(c => c.Cost ?? 0m).ToList();
+                    break;
+                case "Дата":
+                    filteredClips = ascending
+                        ? filteredClips.OrderBy(c => c.DateText ?? "").ToList()
+                        : filteredClips.OrderByDescending(c => c.DateText ?? "").ToList();
+                    break;
+                case "Тема":
+                    filteredClips = ascending
+                        ? filteredClips.OrderBy(c => c.Theme ?? "").ToList()
+                        : filteredClips.OrderByDescending(c => c.Theme ?? "").ToList();
+                    break;
+            }
+
+            // Обновляем отображение
+            videoClips = filteredClips;
+            UpdateDataGridView();
+            UpdateStats();
+
+            // Показываем информацию о фильтрах
+            if (!string.IsNullOrWhiteSpace(searchTerm) || !string.IsNullOrWhiteSpace(filterValue))
+            {
+                labelFilterInfo_PAA.Text = $"Найдено: {filteredClips.Count} записей";
+                if (!string.IsNullOrWhiteSpace(searchTerm))
+                    labelFilterInfo_PAA.Text += $" | Поиск: '{searchTerm}'";
+                if (!string.IsNullOrWhiteSpace(filterValue))
+                    labelFilterInfo_PAA.Text += $" | Фильтр: {comboBoxFilterField_PAA.SelectedItem} = '{filterValue}'";
+                labelFilterInfo_PAA.Visible = true;
+            }
+            else
+            {
+                labelFilterInfo_PAA.Visible = false;
+            }
+
+            // Показываем информацию о сортировке
+            if (sortBy != "Название" || !ascending)
+            {
+                labelSortInfo_PAA.Text = $"Сортировка: {sortBy} {(ascending ? "↑" : "↓")}";
+                labelSortInfo_PAA.Visible = true;
+            }
+            else
+            {
+                labelSortInfo_PAA.Visible = false;
+            }
+        }
+
+        // === ОСНОВНЫЕ МЕТОДЫ ===
+        private void UpdateDataGridView()
+        {
+            if (dataTable == null) return;
+
+            dataTable.Clear();
+            dataTable.Columns.Clear();
+
+            if (videoClips == null || videoClips.Count == 0)
+                return;
+
+            // Создаем колонки
+            dataTable.Columns.Add("ID", typeof(int));
+            dataTable.Columns.Add("Тема", typeof(string));
+            dataTable.Columns.Add("Название", typeof(string));
+            dataTable.Columns.Add("Длительность", typeof(string));
+            dataTable.Columns.Add("Дата", typeof(string));
+            dataTable.Columns.Add("Стоимость", typeof(string));
+            dataTable.Columns.Add("Страна", typeof(string));
+
+            // Заполняем данные
+            foreach (var clip in videoClips)
+            {
+                dataTable.Rows.Add(
+                    clip.Id,
+                    clip.Theme ?? "",
+                    clip.Title ?? "",
+                    clip.DurationText ?? "",
+                    clip.DateText ?? "",
+                    clip.CostText ?? "",
+                    clip.Country ?? ""
+                );
+            }
+
+            dataGridViewMain_PAA.AutoResizeColumns(DataGridViewAutoSizeColumnsMode.AllCells);
+        }
+
+        private void UpdateStats()
+        {
+            if (videoClips == null || videoClips.Count == 0)
+            {
+                labelStats_PAA.Text = "Записей: 0";
+                return;
+            }
+
+            var costStats = StatsService.CalculateCostStats(videoClips);
+            labelStats_PAA.Text = $"Записей: {videoClips.Count} | Со стоимостью: {costStats.Count} | Сумма: {costStats.Sum:N0}";
+        }
+
+        // === КНОПКИ ===
+        private void ButtonChartNow_PAA_Click(object? sender, EventArgs e)
+        {
+            if (videoClips == null || videoClips.Count == 0)
+            {
+                MessageBox.Show("Нет данных для построения графика",
+                    "Информация", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            var themeStats = StatsService.CountByTheme(videoClips);
+
+            if (themeStats.Count == 0)
+            {
+                MessageBox.Show("Нет данных для построения графика",
+                    "Информация", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            // Простой график в MessageBox
+            string chartText = "РАСПРЕДЕЛЕНИЕ ПО ТЕМАМ:\n\n";
+            foreach (var stat in themeStats)
+            {
+                int barLength = (int)((stat.Value / (double)themeStats.Values.Max()) * 30);
+                chartText += $"{stat.Key}: {new string('█', barLength)} {stat.Value}\n";
+            }
+
+            MessageBox.Show(chartText, "Гистограмма распределения",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        private void ButtonStatsNow_PAA_Click(object? sender, EventArgs e)
+        {
+            if (videoClips == null || videoClips.Count == 0)
+            {
+                MessageBox.Show("Нет данных для статистики",
+                    "Информация", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            var costStats = StatsService.CalculateCostStats(videoClips);
+            var themeStats = StatsService.CountByTheme(videoClips);
+            var countryStats = StatsService.CountByCountry(videoClips);
+
+            string statsText = "СТАТИСТИКА КАТАЛОГА\n\n";
+            statsText += $"Всего записей: {videoClips.Count}\n";
+            statsText += $"Записей со стоимостью: {costStats.Count}\n";
+            statsText += $"Общая сумма: {costStats.Sum:N0}\n";
+            statsText += $"Средняя стоимость: {costStats.Avg:N2}\n";
+            statsText += $"Минимальная стоимость: {costStats.Min:N2}\n";
+            statsText += $"Максимальная стоимость: {costStats.Max:N2}\n\n";
+
+            statsText += "ПО ТЕМАМ (топ-5):\n";
+            int count = 0;
+            foreach (var stat in themeStats.Take(5))
+            {
+                statsText += $"{stat.Key}: {stat.Value}\n";
+                count++;
+            }
+            if (themeStats.Count > 5) statsText += $"... и еще {themeStats.Count - 5}\n";
+
+            statsText += "\nПО СТРАНАМ (топ-3):\n";
+            count = 0;
+            foreach (var stat in countryStats.Take(3))
+            {
+                statsText += $"{stat.Key}: {stat.Value}\n";
+                count++;
+            }
+            if (countryStats.Count > 3) statsText += $"... и еще {countryStats.Count - 3}\n";
+
+            MessageBox.Show(statsText, "Статистика",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        private void ButtonResetNow_PAA_Click(object? sender, EventArgs e)
+        {
+            // Сбрасываем все фильтры
+            textBoxSearch_PAA.Text = "";
+            textBoxFilterValue_PAA.Text = "";
+            comboBoxSortField_PAA.SelectedIndex = 0;
+            radioButtonAsc_PAA.Checked = true;
+
+            if (originalClips != null)
+            {
+                videoClips = new List<VideoClip>(originalClips);
+                UpdateDataGridView();
+                UpdateStats();
+            }
+
+            labelFilterInfo_PAA.Visible = false;
+            labelSortInfo_PAA.Visible = false;
+        }
+
+        private void buttonHelp_PAA_Click(object? sender, EventArgs e)
+        {
+            MessageBox.Show(
+                "КАТАЛОГ ВИДЕОКЛИПОВ\n\n" +
+                "Использование:\n" +
+                "1. Файл → Открыть: выберите CSV файл с данными (разделитель ;)\n" +
+                "2. Поиск: вводите текст для поиска по всем полям\n" +
+                "3. Фильтр: выбирайте поле и значение для точного фильтра\n" +
+                "4. Сортировка: выбирайте поле и порядок сортировки\n" +
+                "5. Все изменения применяются автоматически\n\n" +
+                "Формат CSV: ID;Тема;Название;Длительность;Дата;Стоимость;Страна",
+                "Справка",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information
+            );
+        }
+
+        private void buttonAbout_PAA_Click(object? sender, EventArgs e)
+        {
+            MessageBox.Show(
+                "Каталог видеоклипов\n" +
+                "Разработчик: Панькова А.А.\n" +
+                "Группа: ПИН6-25-1\n\n" +
+                "Тюменский индустриальный университет\n" +
+                "© 2025",
+                "О программе",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information
+            );
+        }
+
+        private void выходToolStripMenuItem_Click(object? sender, EventArgs e)
+        {
+            Application.Exit();
+        }
+
+        private void открытьToolStripMenuItem_Click(object? sender, EventArgs e)
+        {
+            using (OpenFileDialog openFileDialog = new OpenFileDialog())
+            {
+                openFileDialog.Filter = "CSV файлы (*.csv)|*.csv|Все файлы (*.*)|*.*";
+                openFileDialog.Title = "Выберите CSV файл с данными";
+                openFileDialog.InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+
+                if (openFileDialog.ShowDialog() == DialogResult.OK)
+                {
+                    try
+                    {
+                        LoadCSVFile(openFileDialog.FileName);
+                        MessageBox.Show($"Файл успешно загружен!\nЗаписей: {videoClips.Count}",
+                            "Успех", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Ошибка при загрузке файла:\n{ex.Message}",
+                            "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            }
+        }
+
+        private void сохранитьToolStripMenuItem_Click(object? sender, EventArgs e)
+        {
+            if (videoClips == null || videoClips.Count == 0)
+            {
+                MessageBox.Show("Нет данных для сохранения", "Информация",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            using (SaveFileDialog saveFileDialog = new SaveFileDialog())
+            {
+                saveFileDialog.Filter = "CSV файлы (*.csv)|*.csv";
+                saveFileDialog.Title = "Сохранить данные в CSV";
+                saveFileDialog.DefaultExt = "csv";
+
+                if (saveFileDialog.ShowDialog() == DialogResult.OK)
+                {
+                    try
+                    {
+                        SaveToCSV(saveFileDialog.FileName);
+                        MessageBox.Show($"Данные сохранены в файл:\n{saveFileDialog.FileName}",
+                            "Успех", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Ошибка при сохранении:\n{ex.Message}",
+                            "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            }
+        }
+
+        private void SaveToCSV(string filePath)
+        {
+            using (StreamWriter writer = new StreamWriter(filePath, false, Encoding.UTF8))
+            {
+                // Заголовок CSV с разделителем ;
+                writer.WriteLine("ID;Тема;Название;Длительность;Дата;Стоимость;Страна");
+
+                // Данные
+                foreach (var clip in originalClips)
+                {
+                    writer.WriteLine($"{clip.Id};{clip.Theme};{clip.Title};{clip.DurationText};{clip.DateText};{clip.CostText};{clip.Country}");
+                }
+            }
+        }
+
+        private void добавитьToolStripMenuItem_Click(object? sender, EventArgs e)
+        {
+            // Простой диалог добавления
+            string title = Microsoft.VisualBasic.Interaction.InputBox("Введите название видеоклипа:", "Добавление записи");
+            if (!string.IsNullOrWhiteSpace(title))
+            {
+                int newId = originalClips.Count > 0 ? originalClips.Max(c => c.Id) + 1 : 1;
+                var newClip = new VideoClip
+                {
+                    Id = newId,
+                    Title = title,
+                    Theme = "Новая тема",
+                    DurationText = "0 мин",
+                    DateText = DateTime.Now.Year.ToString(),
+                    CostText = "0 руб",
+                    Country = "Не указана"
+                };
+
+                originalClips.Add(newClip);
+                videoClips.Add(newClip);
+                ApplyFiltersAndSort();
+                MessageBox.Show("Запись добавлена", "Информация",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        private void редактироватьToolStripMenuItem_Click(object? sender, EventArgs e)
+        {
+            if (dataGridViewMain_PAA.SelectedRows.Count > 0)
+            {
+                int selectedIndex = dataGridViewMain_PAA.SelectedRows[0].Index;
+                if (selectedIndex >= 0 && selectedIndex < videoClips.Count)
+                {
+                    var clip = videoClips[selectedIndex];
+                    string newTitle = Microsoft.VisualBasic.Interaction.InputBox("Введите новое название:", "Редактирование", clip.Title);
+                    if (!string.IsNullOrWhiteSpace(newTitle))
+                    {
+                        clip.Title = newTitle;
+                        // Обновляем в оригинальном списке
+                        var origClip = originalClips.FirstOrDefault(c => c.Id == clip.Id);
+                        if (origClip != null) origClip.Title = newTitle;
+
+                        ApplyFiltersAndSort();
+                        MessageBox.Show("Запись обновлена", "Информация",
+                            MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                }
+            }
+            else
+            {
+                MessageBox.Show("Выберите запись для редактирования", "Информация",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        private void удалитьToolStripMenuItem_Click(object? sender, EventArgs e)
+        {
+            if (dataGridViewMain_PAA.SelectedRows.Count > 0)
+            {
+                int selectedIndex = dataGridViewMain_PAA.SelectedRows[0].Index;
+                if (selectedIndex >= 0 && selectedIndex < videoClips.Count)
+                {
+                    var clip = videoClips[selectedIndex];
+
+                    DialogResult result = MessageBox.Show($"Удалить запись: {clip.Title}?",
+                        "Подтверждение удаления", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+
+                    if (result == DialogResult.Yes)
+                    {
+                        originalClips.RemoveAll(c => c.Id == clip.Id);
+                        ApplyFiltersAndSort();
+                        MessageBox.Show("Запись удалена", "Информация",
+                            MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                }
+            }
+            else
+            {
+                MessageBox.Show("Выберите запись для удаления", "Информация",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        private void dataGridViewMain_PAA_SelectionChanged(object? sender, EventArgs e)
+        {
+            // Пустая реализация
+        }
+
+        // Обработчики для пунктов меню Анализ
+        private void статистикаToolStripMenuItem_Click(object? sender, EventArgs e)
+        {
+            ButtonStatsNow_PAA_Click(sender, e);
+        }
+
+        private void графикToolStripMenuItem_Click(object? sender, EventArgs e)
+        {
+            ButtonChartNow_PAA_Click(sender, e);
         }
     }
 }
