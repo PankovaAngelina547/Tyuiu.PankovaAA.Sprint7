@@ -5,9 +5,8 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 
-namespace Tyuiu.PankovaAA.Sprint7.Lib  // ИСПРАВЛЕНО: PankovaAA вместо PankovaPAA
+namespace Tyuiu.PankovaAA.Sprint7.Lib  
 {
-    // МОДЕЛИ (ОБНОВЛЕННЫЕ)
 
     public sealed class VideoClip
     {
@@ -32,7 +31,6 @@ namespace Tyuiu.PankovaAA.Sprint7.Lib  // ИСПРАВЛЕНО: PankovaAA вме
         public decimal Max { get; set; }
     }
 
-    // СЕРВИС СТАТИСТИКИ
 
     public static class StatsService
     {
@@ -91,14 +89,12 @@ namespace Tyuiu.PankovaAA.Sprint7.Lib  // ИСПРАВЛЕНО: PankovaAA вме
         }
     }
 
-    // ПАРСЕР CSV (ДЛЯ ТВОЕГО ФАЙЛА)
 
     public static class CsvParser_PAA
     {
         private const char Separator = ';';
         private static readonly CultureInfo CultureInvariant = CultureInfo.InvariantCulture;
 
-        // Парсинг длительности из текста в секунды
         public static int ParseDuration(string durationText)
         {
             if (string.IsNullOrWhiteSpace(durationText))
@@ -106,20 +102,16 @@ namespace Tyuiu.PankovaAA.Sprint7.Lib  // ИСПРАВЛЕНО: PankovaAA вме
 
             int totalSeconds = 0;
 
-            // Паттерны для разбора
             durationText = durationText.ToLower();
 
-            // Часы
             var hourMatch = Regex.Match(durationText, @"(\d+)\s*ч");
             if (hourMatch.Success && int.TryParse(hourMatch.Groups[1].Value, out int hours))
                 totalSeconds += hours * 3600;
 
-            // Минуты
             var minMatch = Regex.Match(durationText, @"(\d+)\s*мин");
             if (minMatch.Success && int.TryParse(minMatch.Groups[1].Value, out int minutes))
                 totalSeconds += minutes * 60;
 
-            // Секунды
             var secMatch = Regex.Match(durationText, @"(\d+)\s*сек");
             if (secMatch.Success && int.TryParse(secMatch.Groups[1].Value, out int seconds))
                 totalSeconds += seconds;
@@ -127,7 +119,6 @@ namespace Tyuiu.PankovaAA.Sprint7.Lib  // ИСПРАВЛЕНО: PankovaAA вме
             return totalSeconds > 0 ? totalSeconds : 0;
         }
 
-        // Парсинг стоимости из текста
         public static decimal? ParseCost(string costText, out string currency)
         {
             currency = "";
@@ -135,10 +126,8 @@ namespace Tyuiu.PankovaAA.Sprint7.Lib  // ИСПРАВЛЕНО: PankovaAA вме
             if (string.IsNullOrWhiteSpace(costText))
                 return null;
 
-            // Очистка текста
             costText = costText.Trim().ToLower();
 
-            // Определение валюты
             if (costText.Contains("руб") || costText.Contains("rub"))
                 currency = "RUB";
             else if (costText.Contains("$") || costText.Contains("доллар"))
@@ -150,23 +139,18 @@ namespace Tyuiu.PankovaAA.Sprint7.Lib  // ИСПРАВЛЕНО: PankovaAA вме
             else
                 currency = "UNKNOWN";
 
-            // Извлечение числа
             string numberText = Regex.Replace(costText, @"[^\d.,]", "");
 
-            // Замена запятых на точки для парсинга
             numberText = numberText.Replace(',', '.');
 
-            // Удаление лишних точек (оставляем только одну)
             int dotCount = numberText.Count(c => c == '.');
             if (dotCount > 1)
             {
-                // Оставляем только последнюю точку как десятичный разделитель
                 int lastDot = numberText.LastIndexOf('.');
                 numberText = numberText.Replace(".", "");
                 numberText = numberText.Insert(lastDot - (dotCount - 1), ".");
             }
 
-            // Множители для миллиардов/миллионов
             decimal multiplier = 1;
             if (costText.Contains("млрд") || costText.Contains("млрд"))
                 multiplier = 1000000000;
@@ -183,24 +167,21 @@ namespace Tyuiu.PankovaAA.Sprint7.Lib  // ИСПРАВЛЕНО: PankovaAA вме
             return null;
         }
 
-        // Основной парсер CSV
         public static List<VideoClip> ParseClipsFromFile(string filePath)
         {
             var clips = new List<VideoClip>();
 
             if (!File.Exists(filePath))
             {
-                // Если файла нет, создаем тестовые данные
                 CreateSampleCsvFile(filePath);
                 return clips;
             }
 
             var lines = File.ReadAllLines(filePath);
 
-            if (lines.Length < 2) // только заголовок
+            if (lines.Length < 2) 
                 return clips;
 
-            // Пропускаем BOM если есть
             string header = lines[0];
             if (header.StartsWith("\uFEFF"))
                 header = header.Substring(1);
@@ -211,7 +192,6 @@ namespace Tyuiu.PankovaAA.Sprint7.Lib  // ИСПРАВЛЕНО: PankovaAA вме
                 if (string.IsNullOrWhiteSpace(line))
                     continue;
 
-                // Разбиваем строку с учетом того, что внутри могут быть точки с запятой
                 var parts = SplitCsvLine(line);
 
                 if (parts.Length < 7)
@@ -219,7 +199,6 @@ namespace Tyuiu.PankovaAA.Sprint7.Lib  // ИСПРАВЛЕНО: PankovaAA вме
 
                 try
                 {
-                    // Парсинг стоимости
                     decimal? cost = ParseCost(parts[5], out string currency);
 
                     var clip = new VideoClip
@@ -240,7 +219,6 @@ namespace Tyuiu.PankovaAA.Sprint7.Lib  // ИСПРАВЛЕНО: PankovaAA вме
                 }
                 catch (Exception ex)
                 {
-                    // Логируем ошибку, но продолжаем обработку
                     Console.WriteLine($"Ошибка парсинга строки {i}: {ex.Message}");
                 }
             }
@@ -248,15 +226,12 @@ namespace Tyuiu.PankovaAA.Sprint7.Lib  // ИСПРАВЛЕНО: PankovaAA вме
             return clips;
         }
 
-        // Сохранение клипов в CSV
         public static void SaveClipsToFile(string filePath, List<VideoClip> clips)
         {
             using StreamWriter writer = new StreamWriter(filePath, false, System.Text.Encoding.UTF8);
 
-            // Заголовок
             writer.WriteLine("ID;Тема;Название;Длительность ;Дата;Стоимость ;Страна");
 
-            // Данные
             foreach (var clip in clips)
             {
                 writer.WriteLine(
@@ -271,7 +246,6 @@ namespace Tyuiu.PankovaAA.Sprint7.Lib  // ИСПРАВЛЕНО: PankovaAA вме
             }
         }
 
-        // Создание тестового CSV файла
         private static void CreateSampleCsvFile(string filePath)
         {
             var sampleClips = new List<VideoClip>
@@ -286,8 +260,6 @@ namespace Tyuiu.PankovaAA.Sprint7.Lib  // ИСПРАВЛЕНО: PankovaAA вме
             SaveClipsToFile(filePath, sampleClips);
         }
 
-        // Вспомогательные методы
-
         private static int ParseInt(string text)
         {
             if (int.TryParse(text, out int result))
@@ -299,7 +271,6 @@ namespace Tyuiu.PankovaAA.Sprint7.Lib  // ИСПРАВЛЕНО: PankovaAA вме
         {
             if (field == null) return "";
 
-            // Экранируем кавычки и добавляем кавычки если есть разделитель или кавычки
             if (field.Contains(Separator) || field.Contains('"') || field.Contains('\n'))
             {
                 return $"\"{field.Replace("\"", "\"\"")}\"";
@@ -319,11 +290,10 @@ namespace Tyuiu.PankovaAA.Sprint7.Lib  // ИСПРАВЛЕНО: PankovaAA вме
 
                 if (c == '"')
                 {
-                    // Проверяем на двойные кавычки ""
                     if (i + 1 < line.Length && line[i + 1] == '"')
                     {
                         currentField += '"';
-                        i++; // Пропускаем следующую кавычку
+                        i++; 
                     }
                     else
                     {
@@ -341,7 +311,7 @@ namespace Tyuiu.PankovaAA.Sprint7.Lib  // ИСПРАВЛЕНО: PankovaAA вме
                 }
             }
 
-            result.Add(currentField); // Последнее поле
+            result.Add(currentField); 
             return result.ToArray();
         }
     }
